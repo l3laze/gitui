@@ -1,0 +1,128 @@
+* {
+  margin: 0;
+  padding: 0;
+  user-select: none;
+}
+
+a {
+  text-decoration: none;
+}
+
+a.w3-btn:hover {
+  opacity:1.0;
+  box-shadow:none;
+}
+
+input [type=checkbox] {
+
+}
+
+#repoList {
+  width: 100%;
+  list-style-type: none;
+}
+
+#settingsModal, #addModal {
+  display: none;
+}
+
+#cloneRecursive {
+  white-space: nowrap;
+}
+
+#status {
+  height: 3.2em;
+  width: 99.9%;
+}
+
+#addImport {
+  display: none;
+}
+
+.repolist-half.w3-left {
+  width: 70%;
+  white-space: nowrap;
+}
+
+.repolist-half.w3-right {
+  width: 30%;
+  white-space: nowrap;
+}
+
+.text-of {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.line {
+  height: 2px;
+  width: 100%;
+}
+
+.vertical-space {
+  margin-top: 3px;
+  margin-bottom: 6px;
+}
+
+.top-space {
+  margin-top: 6px;
+}
+
+.bottom-space {
+  margin-bottom: 6px;
+}
+
+.bottom-space-half {
+  margin-bottom: 3px;
+}
+
+.less-top-space {
+  margin-top: -6px;
+}
+
+.less-top-space-half {
+  margin-top: -3px;
+}
+
+.less-bottom-space {
+  margin-bottom: -6px;
+}
+
+.less-bottom-space-half {
+  margin-top: -3px;
+}
+
+.less-bottom-space-2x {
+  margin-bottom: -9px
+}
+
+.top-pad {
+  padding-top: 6px;
+}
+
+.bottom-pad {
+  padding-bottom: 6px;
+}
+
+.less-bottom-pad {
+  padding-bottom: -3px;
+}
+
+.modal-header {
+  margin-left: -2em;
+}
+
+.w3-input {
+  max-width: 75%;
+  outline: none;
+  font-size: 1.5em;
+  line-height: 1em;
+  max-height: 1.5em;
+  padding-top: 0.2em;
+  padding-bottom: 0.2em;
+}
+
+.commit-message {
+  height: 1em;
+  minimum-height: 1em;
+}

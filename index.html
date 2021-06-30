@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>gitui</title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="w3.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+  <script src="index.js"></script>
+</head>
+<body class="w3-white">
+<div class="w3-main">
+
+  <div class="w3-row w3-whole w3-black">
+    <b class="w3-large w3-left w3-margin-left top-space">GitUI</b>
+
+    <span class="w3-right">
+      <a href="#" class="w3-btn" onclick="openModal('Add')">
+        <i class="fa fa-plus"></i>
+      </a>
+      <a href="#" class="w3-btn" onclick="openModal('Settings')">
+        <i class="fa fa-cog"></i>
+        &nbsp;
+      </a>
+    </span>
+  </div>
+
+  <div>
+    <ul class="w3-container w3-margin-top" id="repoList">
+      <li class="w3-row w3-card w3-padding" onclick="openRepo(this.querySelector('.repo-name').innerText)">
+        <div class="repolist-half text-of w3-left">
+          <b class="repo-name text-of">thingy/majig-nightly-build</b>
+          <div class="line bottom-space w3-black w3-whole">-</div>
+            <a href="#" class="text-of" onclick="copyText(this.querySelector('.commit-message').innerText)">
+              <i class="fa fa-file-text"></i>
+              <b class="commit-message text-of">Hello, hello, hello! *awkward pause*</b>
+            </a>
+            <br />
+            <a href="#" class="text-of" onclick="copyText('Hash')">
+              <i class="fa fa-hashtag"></i>
+              <b class="text-of">867530969420abcxyz123</b>
+            </a>
+            <br  />
+            <a href="#" class="text-of" onclick="copyText('Name')">
+              <i class="fa fa-user-circle"></i>
+              <b class="text-of">Commiter Name Is A. Long One</b>
+            </a>
+            <br />
+            <a href="#" class="text-of" onclick="copyText('Email')">
+              <i class="fa fa-envelope"></i>
+              <b class="text-of">commiter&commat;service&period;com</b>
+            </a>
+          </div>
+
+        <div class="repolist-half w3-right-align w3-right text-of">
+          <a href="#" class="w3-small" onclick="event.stopPropagation();pullRepo(this.parentElement.parentElement.querySelector('b.repo-name').innerText)">
+            <i class="fa fa-arrow-circle-down w3-large">
+              <b>1</b>
+            </i>
+          </a>
+          <a href="#" class="w3-small" onclick="event.stopPropagation();pushRepo(this.parentElement.parentElement.querySelector('b.repo-name').innerText)">
+            <i class="fa fa-arrow-circle-up w3-large">
+              <b>1</b>
+            </i>
+          </a>
+          <div class="line bottom-space-half w3-black">-</div>
+                    <a href="#" class="w3-tag w3-round w3-green w3-border" onclick="copyText('CI status')">
+            <b>CI</b>
+          </a>
+          <a href="#" class="w3-tag w3-round w3-yellow w3-border" onclick="copyText('Code Review')">
+            <b>CR</b>
+          </a>
+          <br  />
+          <a href="#" onclick="copyText('URL')"class="top-space">
+              <b class="text-of">github.com</b>
+              <i class="fa fa-link"></i>
+          </a>
+          <br />
+          <b class="">6/9/1969</b>
+          <i class="fa fa-calendar"></i>
+          <br  />
+          <b class="">4:20 pm</b>
+          <i class="fa fa-clock-o"></i>
+        </div>
+      </li>
+
+      <li class="w3-row w3-card w3-padding w3-margin-top" onclick="openRepo(this.querySelector('.repo-name').innerText)">
+        <b class="repo-name text-of">thing/two</b>
+        <div class="w3-right">
+          <a href="#" class="w3-small" onclick="event.stopPropagation();pullRepo(this.parentElement.parentElement.querySelector('b.repo-name').innerText)">
+            <i class="fa fa-arrow-circle-down w3-large">
+              <b>1</b>
+            </i>
+          </a>
+          <a href="#" class="w3-small" onclick="event.stopPropagation();pushRepo(this.parentElement.parentElement.querySelector('b.repo-name').innerText)">
+            <i class="fa fa-arrow-circle-up w3-large">
+              <b>1</b>
+            </i>
+          </a>
+        </div>
+      </li>
+    </ul>
+  </div>
+
+  <div id="modal" class="w3-modal">
+    <div class="w3-modal-content">
+
+      <div class="w3-row">
+        <header class="w3-container w3-black">
+          <span onclick="closeModal()"
+          class="w3-btn w3-large w3-display-topright">&times;</span>
+          <h4 id="modal_title">Modal Header</h4>
+        </header>
+      </div>
+
+      <form id="settingsModal" class="w3-container w3-padding">
+        <h5 class="">Git Config</h5>
+        <div class="w3-black line less-top-space bottom-space"></div>
+        <input type="text" id="git-name" class="w3-input" />
+        <label for="git-name">&nbsp;Name</label>
+        <br />
+        <input type="text" id="git-email" class="w3-input" />
+        <label for="git-email">&nbsp;Email</label>
+      </form>
+
+      <form id="addModal" class="w3-container w3-padding">
+        <span class="w3-row">
+          <h5 class="w3-left">Add New Repository</h5>
+          <a href="#" class="w3-btn w3-large w3-border w3-right" onclick="importRepo()">Import Repository</a>
+        </span>
+        <div class="w3-black line bottom-space"></div>
+
+        <div id="addNew" class="add-tab">
+          <input type="text" id="repo-source" class="w3-input vertical-space" />
+          <label for="repo-source">&nbsp;Source</label>
+          <br />
+          <input type="text" id="repo-name" class="w3-input vertical-space" />
+          <label for="repo-name">&nbsp;Name</label>
+          <br />
+          <br />
+          <input type="checkbox" id="clone-recursive" style="display:inline-block;vertical-align:-2px; margin-right:6px" />
+          <label for="clone-recursive" class="w3-large">Clone Recursively</label>
+        </div>
+      </form>
+
+      <div class="w3-row w3-black w3-margin-top">
+        <footer class="w3-container">
+          <span class="w3-right top-space bottom-space">
+            <a href="#" class="w3-btn w3-large" onclick="closeModal()">Cancel</a>
+            <a href="#" class="w3-btn w3-large" onclick="closeModal()">Ok</a>
+          </span>
+        </footer>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="w3-whole w3-bottom w3-black">
+    <textarea class="w3-black" id="status" placeholder="Status" readOnly="true"></textarea>
+  </div>
+</div>
+
+<input type="text" id="copyInput" style="position:absolute;top:-10000px;left:-10000px" />
+</body>
+</html>
