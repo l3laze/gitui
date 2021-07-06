@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>gitui</title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="w3.css">
+  <link rel="stylesheet" href="font-awesome-4.7.0/css/font-awesome.min.css">
+  <script src="script.js"></script>
+</head>
+<body class="w3-white">
+<div class="w3-main">
+
+  <div class="w3-row w3-whole w3-black">
+    <b id="titleText" class="w3-large w3-left">GitUI</b>
+
+    <span class="w3-right">
+      <a class="w3-btn" onclick="toggleFooter()">
+        <i class="fa fa-exclamation"></i>
+        &nbsp;
+      </a>
+      <a class="w3-btn" onclick="toggleDisplay('searchInput', 'inline')">
+        <i class="fa fa-search"></i>
+      </a>
+      <a class="w3-btn" onclick="openModal('Add New Repository')">
+        <i class="fa fa-plus"></i>
+      </a>
+      <a class="w3-btn" onclick="openModal('Settings')">
+        <i class="fa fa-cog"></i>
+        &nbsp;
+      </a>
+    </span>
+
+    <br />
+    <input type="search" placeholder="Search" id="searchInput" style="display:none" class="w3-input" oninput="searchRepos(this.value)" onsearch="this.blur()" autocapitalize="off"  />
+  </div>
+
+  <div>
+    <ul class="w3-container w3-margin-top" id="repoList">
+
+      <li class="w3-row w3-card w3-padding repo-card" onclick="openRepo(this.querySelector('.repo-name').innerText)">
+        <div class="text-of w3-left-align">
+          <b class="repo-name text-of">thingy/majig-nightly-build</b>
+
+          <span class="w3-right">
+            <a class="w3-small" onclick="event.stopPropagation();pullRepo(this.parentElement.parentElement.querySelector('b.repo-name').innerText)">
+              <i class="fa fa-arrow-circle-down w3-large">
+                <b class="commitsBehind">1</b>
+              </i>
+            </a>
+            <a class="w3-small" onclick="event.stopPropagation();pushRepo(this.parentElement.parentElement.querySelector('b.repo-name').innerText)">
+              <i class="fa fa-arrow-circle-up w3-large">
+                <b class="commitsAhead">1</b>
+              </i>
+            </a>
+          </span>
+
+          <div class="line w3-black w3-whole">-</div>
+
+          <a class="text-of" onclick="copyText(this.querySelector('.commit-message').innerText)">
+            <i class="fa fa-file-text"></i>
+            <b class="commit-message text-of">&nbsp;Hello, hello, hello! *awkward pause*</b>
+          </a>
+          <br />
+          <a class="text-of" onclick="copyText('Hash')">
+            <i class="fa fa-hashtag"></i>
+            <b class="text-of">&nbsp;867530969420abcxyz123</b>
+          </a>
+          <br  />
+          <a class="text-of" onclick="copyText('Name')">
+            <i class="fa fa-user-circle"></i>
+            <b class="text-of">&nbsp;Commiter Name Is A. Long One</b>
+          </a>
+          <br />
+          <i class="fa fa-calendar"></i>
+          <b class="">&nbsp;6/9/1969</b>
+        </div>
+      </li>
+
+      <li class="w3-row w3-card w3-padding w3-margin-top repo-card" onclick="openRepo(this.querySelector('.repo-name').innerText)">
+        <b class="repo-name text-of">thing/two</b>
+        <div class="w3-right">
+          <a class="w3-small" onclick="event.stopPropagation();pullRepo(this.parentElement.parentElement.querySelector('b.repo-name').innerText)">
+            <i class="fa fa-arrow-circle-down w3-large">
+              <b class="commitsBehind">1</b>
+            </i>
+          </a>
+          <a class="w3-small" onclick="event.stopPropagation();pushRepo(this.parentElement.parentElement.querySelector('b.repo-name').innerText)">
+            <i class="fa fa-arrow-circle-up w3-large">
+              <b class="commitsAhead">1</b>
+            </i>
+          </a>
+        </div>
+      </li>
+
+    </ul>
+  </div>
+
+  <div id="modal" class="w3-modal">
+    <div class="w3-modal-content">
+
+      <div class="w3-row">
+        <header class="w3-container w3-black">
+          <span onclick="cancelModal()"
+          class="w3-btn w3-large w3-display-topright">&times;</span>
+          <h4 id="modal_title">Modal Header</h4>
+        </header>
+      </div>
+
+      <form id="settingsModal" class="w3-container w3-padding">
+
+        <div class="w3-bar">
+          <a class="w3-bar-item w3-btn w3-black settings-btn" onclick="openTab('App', 'settings-control', 'settings-btn')">App</a>
+          <a class="w3-bar-item w3-btn settings-btn" onclick="openTab('Git', 'settings-control', 'settings-btn')">Git</a>
+        </div>
+
+        <div class="w3-black line"></div>
+        <br />
+        <span id="settingsApp" class="settings-control">
+          <input type="text" id="app-thing1" class="w3-input" autocapitalize="off" />
+          <label for="app-thing1">&nbsp;<b>thing1</b></label>
+          <br />
+          <input type="text" id="app-thing2" class="w3-input" autocapitalize="off" />
+          <label for="app-thing2">&nbsp;<b>thing2</b></label>
+        </span>
+
+        <span id="settingsGit" style="display:none" class="settings-control">
+          <input type="text" id="git-name" class="w3-input" autocapitalize="off" />
+          <label for="git-name">&nbsp;<b>Name</b></label>
+          <br />
+          <input type="text" id="git-email" class="w3-input" autocapitalize="off" />
+          <label for="git-email">&nbsp;<b>Email</b></label>
+        </span>
+      </form>
+
+      <form id="addModal" class="w3-container w3-padding">
+
+        <div class="w3-bar">
+          <a class="w3-bar-item w3-btn w3-black add-btn" onclick="openTab('Clone', 'add-control', 'add-btn')">Clone</a>
+          <a class="w3-bar-item w3-btn add-btn" onclick="openTab('Init', 'add-control', 'add-btn')">Init</a>
+          <a class="w3-bar-item w3-btn add-btn" onclick="openTab('Import', 'add-control', 'add-btn')">Import</a>
+        </div>
+
+        <div id="addTab">
+          <div class="w3-black line"></div>
+          <br />
+          <span class="add-control" id="repoSource">
+            <input type="text" class="w3-input" id="repoSourceInput" autocapitalize="off"/>
+            <label for="repoSourceInput">&nbsp;<b>Source URL</b></label>
+            <br />
+          </span>
+          <span class="add-control" id="repoPath">
+            <input type="text" class="w3-input"  id="repoPathInput" autocapitalize="off" />
+            <label for="repoPathInput">&nbsp;<b>Path</b></label>
+            <br />
+          </span>
+          <span class="add-control" id="cloneRecursively">
+            <br />
+            <input type="checkbox" style="display:inline-block;vertical-align:-2px; margin-right:6px" id="cloneRecursivelyCB" />
+            <label for="cloneRecursivelyCB"><b>Clone Recursively</b></label>
+          </span>
+        </div>
+
+      </form>
+
+      <div class="w3-row w3-black w3-margin-top">
+        <footer class="w3-container">
+          <span class="w3-right  ">
+            <a class="w3-btn w3-large" onclick="cancelModal()">Cancel</a>
+            <a class="w3-btn w3-large" onclick="okModal()">Ok</a>
+          </span>
+        </footer>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="w3-whole w3-bottom w3-black">
+    <textarea class="w3-black" id="status" placeholder="Status" readOnly="true" onfocus="this.blur()"></textarea>
+  </div>
+</div>
+
+</body>
+</html>
