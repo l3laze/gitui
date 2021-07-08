@@ -4,6 +4,26 @@
   user-select: none;
 }
 
+header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  padding: 0 16px;
+  z-index: 9999;
+  box-shadow: 0 2px 5px rgba(0,0,0,.26);
+}
+
+body {
+  margin: 0;
+  margin-top: 56px;
+  height: 100%;
+}
+
+#container {
+  height: 100vh;
+}
+
 a {
   text-decoration: none;
 }
@@ -32,7 +52,7 @@ a.w3-btn:active, a.w3-btn:focus, a.w3-btn:hover {
   -webkit-appearance: none;
   height: 20px;
   width: 20px;
-  background: url('fontawesome-5.15.3/svgs/solid/times-circle.svg') no-repeat 50% 50%;
+  background: text('&times;') no-repeat 50% 50%;
 }
 
 #repoList {
@@ -46,9 +66,6 @@ a.w3-btn:active, a.w3-btn:focus, a.w3-btn:hover {
 
 #cloneRecursive {
   white-space: nowrap;
-}
-
-#consoleToggle {
 }
 
 #status {

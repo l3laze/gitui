@@ -3,6 +3,7 @@ package com.github.l3laze.gitui;
 import android.app.Activity;
 import android.os.Bundle;
 import android.webkit.WebView;
+import android.webkit.WebViewClient;
 import android.view.Window;
 import android.content.Context;
 import android.content.ClipData;
@@ -21,6 +22,7 @@ public class MainActivity extends Activity {
         setContentView(R.layout.activity_main);
 
         WebView webView = (WebView) findViewById(R.id.webapp);
+        webView.setWebViewClient(new WebViewClient());
         webView.getSettings().setJavaScriptEnabled(true);
         webView.addJavascriptInterface(new WebAppInterface(this), "Android");
         webView.loadUrl("file:///android_asset/index.html");

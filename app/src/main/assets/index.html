@@ -3,24 +3,36 @@
 <head>
   <title>gitui</title>
 
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="user-scalable=no, initial-scale=1, maximum-scale=1, minimum-scale=1, width=device-width">
+  <meta name="theme-color" content="#039be5">
 
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="w3.css">
   <link rel="stylesheet" href="font-awesome-4.7.0/css/font-awesome.min.css">
   <script src="script.js"></script>
-</head>
-<body class="w3-white">
-<div class="w3-main">
 
-  <div class="w3-row w3-whole w3-black">
-    <b id="titleText" class="w3-large w3-left">GitUI</b>
+  <link href="jiangfengming/pull-to-refresh/dist/styles/material/style.css" rel="stylesheet">
+    <script src="jiangfengming/pull-to-refresh/dist/styles/material/animates.js"></script>
+    <script src="jiangfengming/pull-to-refresh/dist/pullToRefresh.js"></script>
+</head>
+
+<body>
+<div id="container" class="container pull-to-refresh-material">
+  <div class="pull-to-refresh-material__control">
+    <svg class="pull-to-refresh-material__icon" fill="#4285f4" width="24" height="24" viewBox="0 0 24 24">
+      <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" />
+      <path d="M0 0h24v24H0z" fill="none" />
+    </svg>
+ 
+    <svg class="pull-to-refresh-material__spinner" width="24" height="24" viewBox="25 25 50 50">
+      <circle class="pull-to-refresh-material__path pull-to-refresh-material__path--colorful" cx="50" cy="50" r="20" fill="none" stroke-width="4" stroke-miterlimit="10" />
+    </svg>
+  </div>
+
+  <div class="w3-row w3-whole w3-black header">
+    <b id="titleText" onclick="toggleFooter()" class="w3-large w3-left">gitUI</b>
 
     <span class="w3-right">
-      <a class="w3-btn" onclick="toggleFooter()">
-        <i class="fa fa-exclamation"></i>
-        &nbsp;
-      </a>
       <a class="w3-btn" onclick="toggleDisplay('searchInput', 'inline')">
         <i class="fa fa-search"></i>
       </a>
@@ -61,21 +73,21 @@
 
           <a class="text-of" onclick="copyText(this.querySelector('.commit-message').innerText)">
             <i class="fa fa-file-text"></i>
-            <b class="commit-message text-of">&nbsp;Hello, hello, hello! *awkward pause*</b>
+            <b class="commit-message text-of">Hello, hello, hello! *awkward pause*</b>
           </a>
           <br />
-          <a class="text-of" onclick="copyText('Hash')">
+          <a class="text-of" onclick="copyText(this.querySelector('.commit-hash').innerText)">
             <i class="fa fa-hashtag"></i>
-            <b class="text-of">&nbsp;867530969420abcxyz123</b>
+            <b class="commit-hash text-of">867530969420abcxyz123</b>
           </a>
           <br  />
-          <a class="text-of" onclick="copyText('Name')">
+          <a class="text-of" onclick="copyText(this.querySelector('.commit-name').innerText)">
             <i class="fa fa-user-circle"></i>
-            <b class="text-of">&nbsp;Commiter Name Is A. Long One</b>
+            <b class="commit-name text-of">Commiter Name Is A. Long One</b>
           </a>
           <br />
           <i class="fa fa-calendar"></i>
-          <b class="">&nbsp;6/9/1969</b>
+          <b class="commit-date">6/9/1969</b>
         </div>
       </li>
 
@@ -182,5 +194,18 @@
   </div>
 </div>
 
+<script>
+  pullToRefresh({
+    container: document.querySelector('.container'),
+    animates: ptrAnimatesMaterial,
+
+    refresh() {
+      return new Promise(resolve => {
+        window.location.reload(false)
+        setTimeout(resolve, 2000)
+      })
+    }
+  })
+</script>
 </body>
 </html>
