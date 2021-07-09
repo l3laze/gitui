@@ -5,11 +5,15 @@ import android.webkit.JavascriptInterface;
 import android.content.Context;
 import android.widget.Toast;
 
+import com.github.l3laze.gitui.FilesystemInterface;
+
 public class WebAppInterface {
     Context mContext;
+    FilesystemInterface fsi;
 
     WebAppInterface(Context c) {
         mContext = c;
+        fsi = new FilesystemInterface();
     }
 
     @JavascriptInterface
