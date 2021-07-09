@@ -13,6 +13,7 @@ function copyText (text) {
 
 function setStatus (text) {
   const stat = document.getElementById('status')
+
   if (stat.value !== '') {
     stat.value += '\n'
   }
@@ -20,7 +21,7 @@ function setStatus (text) {
   stat.value += text
   stat.scrollTop = stat.scrollHeight;
 
-  if (typeof Android !== 'undefined') {
+  if (stat.style.display === 'none' && typeof Android !== 'undefined') {
     Android.showToast(text)
   }
 }
@@ -43,7 +44,8 @@ function toggleFooter () {
   const stat = document.getElementById('status')
 
   if (stat.style.display === 'none') {
-    stat.style.display = 'block'
+    stat.style.display = 'inline-block'
+    stat.scrollTop = stat.scrollHeight;
   } else {
     stat.style.display = 'none'
   }
@@ -64,8 +66,8 @@ function searchRepos (text) {
   }
 }
 
-function importRepo () {
-  setStatus('Importing repo...')
+function createRepo (way) {
+  setStatus('Creating repo via ' + way + '...')
 }
 
 function openRepo (which) {
@@ -78,7 +80,7 @@ function pullRepo (which) {
   const ahead = event.target.parentElement.parentElement.querySelector('.commitsAhead')
 
   behind.innerText = '0'
-  ahead.innerText = '0'
+  // ahead.innerText = '0'
 
   setStatus('Pulled ' + which)
   event.stopPropagation()
@@ -88,7 +90,7 @@ function pushRepo (which) {
   const ahead = event.target.querySelector('.commitsAhead')
   const behind = event.target.parentElement.parentElement.querySelector('.commitsBehind')
 
-  behind.innerText = '0'
+  // behind.innerText = '0'
   ahead.innerText = '0'
 
   setStatus('Pushed ' + which)
@@ -96,6 +98,7 @@ function pushRepo (which) {
 }
 
 function openModal (title) {
+  const modal = document.getElementById('modal')
   let modes = [
     'settings',
     'add'
@@ -106,10 +109,11 @@ function openModal (title) {
       document.getElementById(m + 'Modal').style.display = 'none'
     } else {
       document.getElementById(m + 'Modal').style.display = 'block'
+      modal['data-mode'] = m
     }
   }
 
-  document.getElementById('modal').style.display = 'block'
+  modal.style.display = 'block'
   document.getElementById('modal_title').innerText = title
 
   setStatus('Opened modal for ' + title)
@@ -122,9 +126,14 @@ function cancelModal () {
 }
 
 function okModal () {
-  document.getElementById('modal').style.display = 'none'
+  const modal = document.getElementById('modal')
+  modal.style.display = 'none'
 
-  setStatus('Okayed modal')
+  if (modal['data-mode'] === 'settings') {
+    saveSettings()
+  } else {
+    createRepo(modal.querySelector('.add-btn.w3-black').innerText)
+  }
 }
 
 function openTab (which, whatClass, btnClass) {
@@ -161,6 +170,12 @@ window.onclick = function clickWin (event) {
   }
 }
 
+/*
+window.ontouchstart = function (event) {
+  setStatus('Touching @ ' + event.target.tagName + ' of ' + event.target?.parentElement)
+}
+*/
+
 window.onerror = function unhandled (msg, source, line, column, err) {
   setStatus('\"' + msg + '\" in \"' +
     source + '\" at line ' + line +
@@ -173,3 +188,50 @@ window.onerror = function unhandled (msg, source, line, column, err) {
 function testErr () {
   throw new Error('Oops')
 }
+
+/*
+// Prevent pull to refresh
+// https://stackoverflow.com/a/55832568/7665043
+// by Ruben Vreeken
+(function() {
+    var touchStartHandler,
+        touchMoveHandler,
+        touchPoint;
+
+    // Only needed for touch events on chrome.
+    if ((window.chrome || navigator.userAgent.match("CriOS"))
+        && "ontouchstart" in document.documentElement) {
+        touchStartHandler = function() {
+            // Only need to handle single-touch cases
+            touchPoint = event.touches.length === 1 ? event.touches[0].clientY : null;
+        };
+
+        touchMoveHandler = function(event) {
+            var newTouchPoint;
+
+            // Only need to handle single-touch cases
+            if (event.touches.length !== 1) {
+                touchPoint = null;
+
+                return;
+            }
+
+            // We only need to defaultPrevent when scrolling up
+            newTouchPoint = event.touches[0].clientY;
+            if (newTouchPoint > touchPoint) {
+                event.preventDefault();
+            }
+            touchPoint = newTouchPoint;
+        };
+
+        document.addEventListener("touchstart", touchStartHandler, {
+            passive: false
+        });
+
+        document.addEventListener("touchmove", touchMoveHandler, {
+            passive: false
+        });
+
+    }
+})()
+*/
