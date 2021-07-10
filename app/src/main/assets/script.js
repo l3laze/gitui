@@ -1,6 +1,26 @@
 'use strict'
 // 'esversion: 6'
 
+const fs = {
+  mkdir: Android.makeDir,
+  exists: Android.exists,
+  readdir: Android.readDir,
+  rimraf: Android.removePath,
+  readFile: Android.readFile,
+  writeFile: Android.writeFile
+}
+
+const path = {
+  resolve: Android.resolve,
+  normalize: Android.normalize,
+  relativize: Android.relativize
+}
+
+const stat = {
+  isFile: Android.isFile,
+  isDir: Android.isDir
+}
+
 function copyText (text) {
   event.stopPropagation()
   if (typeof Android !== 'undefined') {
@@ -45,7 +65,7 @@ function toggleFooter () {
 
   if (stat.style.display === 'none') {
     stat.style.display = 'inline-block'
-    stat.scrollTop = stat.scrollHeight;
+    stat.scrollTop = stat.scrollHeight
   } else {
     stat.style.display = 'none'
   }
@@ -165,9 +185,11 @@ function openTab (which, whatClass, btnClass) {
 }
 
 window.onclick = function clickWin (event) {
+  /*
   if (event.target.className.indexOf('w3-modal') > -1) {
     cancelModal()
   }
+  */
 }
 
 /*

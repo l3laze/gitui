@@ -15,16 +15,16 @@ import android.widget.Toast;
 
 
 public class WebAppInterface {
-    Context mContext;
+  Context mContext;
 
-    WebAppInterface(Context c) {
-      mContext = c;
-    }
+  WebAppInterface(Context c) {
+    mContext = c;
+  }
 
-    @JavascriptInterface
-    public void showToast(String text) {
-      Toast.makeText(mContext, text, Toast.LENGTH_SHORT).show();
-    }
+  @JavascriptInterface
+  public void showToast(String text) {
+    Toast.makeText(mContext, text, Toast.LENGTH_SHORT).show();
+  }
 
   @JavascriptInterface
   public void copyToClipboard(String text) {

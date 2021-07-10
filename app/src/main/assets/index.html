@@ -201,7 +201,10 @@
 
     refresh() {
       return new Promise(resolve => {
-        window.location.reload(false)
+        if (document.getElementById('modal').style.display === 'none') {
+          window.location.reload(false)
+        }
+
         setTimeout(resolve, 2000)
       })
     }
