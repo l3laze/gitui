@@ -1,5 +1,4 @@
 'use strict'
-// 'esversion: 6'
 
 const fs = {
   mkdir: Android.makeDir,
@@ -62,13 +61,13 @@ function toggleDisplay (eid, displayAs) {
 }
 
 function toggleFooter () {
-  const stat = document.getElementById('status')
+  const statusArea = document.getElementById('status')
 
-  if (stat.style.display === 'none') {
-    stat.style.display = 'inline-block'
-    stat.scrollTop = stat.scrollHeight
+  if (statusArea.style.display === 'none') {
+    statusArea.style.display = 'inline-block'
+    statusArea.scrollTop = statusArea.scrollHeight
   } else {
-    stat.style.display = 'none'
+    statusArea.style.display = 'none'
   }
 }
 
@@ -92,28 +91,22 @@ function createRepo (way) {
 }
 
 function openRepo (which) {
-  if (event.className.indexOf('commitsAhead') === -1 && event.className.indexOf('commitsBehind') === -1) {
-    setStatus('Opening ' + which)
-    event.stopPropagation()
-  }
+  setStatus('Opening ' + which)
+  event.stopPropagation()
 }
 
 function pullRepo (which) {
-  const behind = event.target.querySelector('.commitsBehind')
-  const ahead = event.target.parentElement.parentElement.querySelector('.commitsAhead')
+  const behind = event.target.querySelector('.commitsBehind')  || event.target.parentElement.querySelector('.commitsBehind')
 
   behind.innerText = '0'
-  // ahead.innerText = '0'
 
   setStatus('Pulled ' + which)
   event.stopPropagation()
 }
 
 function pushRepo (which) {
-  const ahead = event.target.querySelector('.commitsAhead')
-  const behind = event.target.parentElement.parentElement.querySelector('.commitsBehind')
+  const ahead = event.target.querySelector('.commitsAhead') || event.target.parentElement.querySelector('.commitsAhead')
 
-  // behind.innerText = '0'
   ahead.innerText = '0'
 
   setStatus('Pushed ' + which)
@@ -153,7 +146,7 @@ function okModal () {
   modal.style.display = 'none'
 
   if (modal['data-mode'] === 'settings') {
-    saveSettings()
+    // saveSettings()
   } else {
     createRepo(modal.querySelector('.add-btn.w3-black').innerText)
   }
@@ -198,15 +191,6 @@ window.ontouchstart = function (event) {
   setStatus('Touching @ ' + event.target.tagName + ' of ' + event.target?.parentElement)
 }
 */
-
-window.onerror = function unhandled (msg, source, line, column, err) {
-  setStatus('\"' + msg + '\" in \"' +
-    source + '\" at line ' + line +
-    ', character ' + column + '.')
-  setStatus(err.toString())
-
-  return true
-}
 
 function testErr () {
   throw new Error('Oops')
