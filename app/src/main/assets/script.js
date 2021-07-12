@@ -24,7 +24,10 @@ const stat = {
 function copyText (text) {
   if (typeof Android !== 'undefined') {
     Android.copyToClipboard(text)
-    if (parseInt(Android.androidVersion()) > 27) Android.showToast('Copied to Clip Tray')
+
+    if (parseInt(Android.androidVersion()) > 27) {
+      Android.showToast('Copied to Clip Tray')
+    }
   } else {
     navigator.clipboard.writeText(text)
       .then(function () {}, function () {})
@@ -89,8 +92,10 @@ function createRepo (way) {
 }
 
 function openRepo (which) {
-  setStatus('Opening ' + which)
-  event.stopPropagation()
+  if (event.className.indexOf('commitsAhead') === -1 && event.className.indexOf('commitsBehind') === -1) {
+    setStatus('Opening ' + which)
+    event.stopPropagation()
+  }
 }
 
 function pullRepo (which) {
@@ -183,11 +188,9 @@ function openTab (which, whatClass, btnClass) {
 }
 
 window.onclick = function clickWin (event) {
-  /*
   if (event.target.className.indexOf('w3-modal') > -1) {
     cancelModal()
   }
-  */
 }
 
 /*

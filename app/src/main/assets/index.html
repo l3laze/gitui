@@ -9,7 +9,6 @@
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="w3.css">
   <link rel="stylesheet" href="font-awesome-4.7.0/css/font-awesome.min.css">
-  <script src="script.js"></script>
 
   <link href="jiangfengming/pull-to-refresh/dist/styles/material/style.css" rel="stylesheet">
     <script src="jiangfengming/pull-to-refresh/dist/styles/material/animates.js"></script>
@@ -17,7 +16,7 @@
 </head>
 
 <body>
-<div id="container" class="container pull-to-refresh-material">
+<div id="container" class="w3-content container pull-to-refresh-material">
   <div class="w3-content pull-to-refresh-material__control">
     <svg class="pull-to-refresh-material__icon" fill="#4285f4" width="24" height="24" viewBox="0 0 24 24">
       <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" />
@@ -49,20 +48,20 @@
     <input type="search" placeholder="Search" id="searchInput" style="display:none" class="w3-input" oninput="searchRepos(this.value)" onsearch="this.blur()" autocapitalize="off"  />
   </div>
 
-  <div>
-    <ul class="w3-container w3-margin-top" id="repoList">
+  <div class="w3-content">
+    <ul class="w3-margin-top" id="repoList">
 
       <li class="w3-row w3-card w3-padding repo-card" onclick="openRepo(this.querySelector('.repo-name').innerText)">
         <div class="text-of w3-left-align">
           <b class="repo-name text-of">thingy/majig-nightly-build</b>
 
           <span class="w3-right">
-            <a class="w3-small" onclick="event.stopPropagation();pullRepo(this.parentElement.parentElement.querySelector('b.repo-name').innerText)">
+            <a onclick="pullRepo(this.parentElement.parentElement.querySelector('b.repo-name').innerText)">
               <i class="fa fa-arrow-circle-down w3-large">
                 <b class="commitsBehind">1</b>
               </i>
             </a>
-            <a class="w3-small" onclick="event.stopPropagation();pushRepo(this.parentElement.parentElement.querySelector('b.repo-name').innerText)">
+            <a onclick="pushRepo(this.parentElement.parentElement.querySelector('b.repo-name').innerText)">
               <i class="fa fa-arrow-circle-up w3-large">
                 <b class="commitsAhead">1</b>
               </i>
@@ -94,15 +93,15 @@
       <li class="w3-row w3-card w3-padding w3-margin-top repo-card" onclick="openRepo(this.querySelector('.repo-name').innerText)">
         <b class="repo-name text-of">thing/two</b>
         <div class="w3-right">
-          <a class="w3-small" onclick="event.stopPropagation();pullRepo(this.parentElement.parentElement.querySelector('b.repo-name').innerText)">
+          <a onclick="pullRepo(this.parentElement.parentElement.querySelector('b.repo-name').innerText)">
             <i class="fa fa-arrow-circle-down w3-large">
-              <b class="commitsBehind">1</b>
             </i>
+            <b class="commitsBehind">1</b>
           </a>
-          <a class="w3-small" onclick="event.stopPropagation();pushRepo(this.parentElement.parentElement.querySelector('b.repo-name').innerText)">
+          <a onclick="pushRepo(this.parentElement.parentElement.querySelector('b.repo-name').innerText)">
             <i class="fa fa-arrow-circle-up w3-large">
-              <b class="commitsAhead">1</b>
             </i>
+            <b class="commitsAhead">1</b>
           </a>
         </div>
       </li>
@@ -210,5 +209,263 @@
     }
   })
 </script>
+<script src="script.js"><!--
+'use strict'
+// 'esversion: 6'
+
+const fs = {
+  mkdir: Android.makeDir,
+  exists: Android.exists,
+  readdir: Android.readDir,
+  rimraf: Android.removePath,
+  readFile: Android.readFile,
+  writeFile: Android.writeFile
+}
+
+const path = {
+  resolve: Android.resolve,
+  normalize: Android.normalize,
+  relativize: Android.relativize
+}
+
+const stat = {
+  isFile: Android.isFile,
+  isDir: Android.isDir
+}
+
+function copyText (text) {
+  if (typeof Android !== 'undefined') {
+    Android.copyToClipboard(text)
+
+    if (parseInt(Android.androidVersion()) > 27) {
+      Android.showToast('Copied to Clip Tray')
+    }
+  } else {
+    navigator.clipboard.writeText(text)
+      .then(function () {}, function () {})
+  }
+
+  event.stopPropagation()
+}
+
+function setStatus (text) {
+  const stat = document.getElementById('status')
+
+  if (stat.value !== '') {
+    stat.value += '\n'
+  }
+
+  stat.value += text
+  stat.scrollTop = stat.scrollHeight;
+}
+
+function toggleDisplay (eid, displayAs) {
+  const el = document.getElementById(eid)
+
+  if (el.style.display === 'none') {
+    el.style.display = displayAs
+
+    if (el.tagName === 'INPUT') {
+      el.focus()
+    }
+  } else {
+    el.style.display = 'none'
+  }
+}
+
+function toggleFooter () {
+  const stat = document.getElementById('status')
+
+  if (stat.style.display === 'none') {
+    stat.style.display = 'inline-block'
+    stat.scrollTop = stat.scrollHeight
+  } else {
+    stat.style.display = 'none'
+  }
+}
+
+function searchRepos (text) {
+  const repos = document.getElementsByClassName('repo-card')
+
+  text = text.toLowerCase()
+
+  for (let r of repos) {
+    let repoName = r.querySelector('.repo-name').innerText
+    if (text !== '' && repoName.indexOf(text) < 0) {
+      r.style.display = 'none'
+    } else {
+      r.style.display = 'block'
+    }
+  }
+}
+
+function createRepo (way) {
+  setStatus('Creating repo via ' + way + '...')
+}
+
+function openRepo (which) {
+  setStatus('Opening ' + which)
+  event.stopPropagation()
+}
+
+function pullRepo (which) {
+  const behind = event.target.querySelector('.commitsBehind')
+  const ahead = event.target.parentElement.parentElement.querySelector('.commitsAhead')
+
+  behind.innerText = '0'
+  // ahead.innerText = '0'
+
+  setStatus('Pulled ' + which)
+  event.stopPropagation()
+}
+
+function pushRepo (which) {
+  const ahead = event.target.querySelector('.commitsAhead')
+  const behind = event.target.parentElement.parentElement.querySelector('.commitsBehind')
+
+  // behind.innerText = '0'
+  ahead.innerText = '0'
+
+  setStatus('Pushed ' + which)
+  event.stopPropagation()
+}
+
+function openModal (title) {
+  const modal = document.getElementById('modal')
+  let modes = [
+    'settings',
+    'add'
+  ]
+
+  for (let m of modes) {
+    if (title.toLowerCase().indexOf(m) === -1) {
+      document.getElementById(m + 'Modal').style.display = 'none'
+    } else {
+      document.getElementById(m + 'Modal').style.display = 'block'
+      modal['data-mode'] = m
+    }
+  }
+
+  modal.style.display = 'block'
+  document.getElementById('modal_title').innerText = title
+
+  setStatus('Opened modal for ' + title)
+}
+
+function cancelModal () {
+  document.getElementById('modal').style.display = 'none'
+
+  setStatus('Cancelled modal')
+}
+
+function okModal () {
+  const modal = document.getElementById('modal')
+  modal.style.display = 'none'
+
+  if (modal['data-mode'] === 'settings') {
+    saveSettings()
+  } else {
+    createRepo(modal.querySelector('.add-btn.w3-black').innerText)
+  }
+}
+
+function openTab (which, whatClass, btnClass) {
+  const controls = {
+    clone: [ 'repoSource', 'repoPath', 'cloneRecursively'],
+    init: [ 'repoPath' ],
+    'import': [ 'repoPath' ],
+    app: [ 'settingsApp' ],
+    git: [ 'settingsGit' ]
+  }
+
+  const els = document.getElementsByClassName(whatClass)
+  const btns = document.getElementsByClassName(btnClass)
+
+  for (let e of els) {
+    e.style.display = 'none'
+  }
+
+  for (let b of btns) {
+    b.classList.remove('w3-black')
+  }
+
+  for (let c of controls[ which.toLowerCase() ]) {
+    let elem = document.getElementById(c)
+    elem.style.display = 'inline'
+  }
+
+  event.target.classList.add('w3-black')
+}
+
+window.onclick = function clickWin (event) {
+  if (event.target.className.indexOf('w3-modal') > -1) {
+    cancelModal()
+  }
+}
+
+window.ontouchstart = function (event) {
+  setStatus('Touching @ ' + event.target.tagName + ' of ' + event.target?.parentElement)
+}
+
+window.onerror = function unhandled (msg, source, line, column, err) {
+  setStatus('\"' + msg + '\" in \"' +
+    source + '\" at line ' + line +
+    ', character ' + column + '.')
+  setStatus(err.toString())
+
+  return true
+}
+
+function testErr () {
+  throw new Error('Oops')
+}
+
+/*
+// Prevent pull to refresh
+// https://stackoverflow.com/a/55832568/7665043
+// by Ruben Vreeken
+(function() {
+    var touchStartHandler,
+        touchMoveHandler,
+        touchPoint;
+
+    // Only needed for touch events on chrome.
+    if ((window.chrome || navigator.userAgent.match("CriOS"))
+        && "ontouchstart" in document.documentElement) {
+        touchStartHandler = function() {
+            // Only need to handle single-touch cases
+            touchPoint = event.touches.length === 1 ? event.touches[0].clientY : null;
+        };
+
+        touchMoveHandler = function(event) {
+            var newTouchPoint;
+
+            // Only need to handle single-touch cases
+            if (event.touches.length !== 1) {
+                touchPoint = null;
+
+                return;
+            }
+
+            // We only need to defaultPrevent when scrolling up
+            newTouchPoint = event.touches[0].clientY;
+            if (newTouchPoint > touchPoint) {
+                event.preventDefault();
+            }
+            touchPoint = newTouchPoint;
+        };
+
+        document.addEventListener("touchstart", touchStartHandler, {
+            passive: false
+        });
+
+        document.addEventListener("touchmove", touchMoveHandler, {
+            passive: false
+        });
+
+    }
+})()
+*/
+--></script>
 </body>
 </html>

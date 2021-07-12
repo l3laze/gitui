@@ -5,7 +5,7 @@
 }
 
 header {
-  position: fixed;
+  position: relative;
   top: 0;
   left: 0;
   width: 100%;
@@ -76,6 +76,7 @@ a.w3-btn:active, a.w3-btn:focus, a.w3-btn:hover {
   padding-left: 4px;
   padding-right: 4px;
   resize: none;
+  overflow-y: scroll;
 }
 
 .text-of {
