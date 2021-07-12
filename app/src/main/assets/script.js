@@ -22,13 +22,15 @@ const stat = {
 }
 
 function copyText (text) {
-  event.stopPropagation()
   if (typeof Android !== 'undefined') {
     Android.copyToClipboard(text)
+    if (parseInt(Android.androidVersion()) > 27) Android.showToast('Copied to Clip Tray')
   } else {
     navigator.clipboard.writeText(text)
       .then(function () {}, function () {})
   }
+
+  event.stopPropagation()
 }
 
 function setStatus (text) {
@@ -40,10 +42,6 @@ function setStatus (text) {
 
   stat.value += text
   stat.scrollTop = stat.scrollHeight;
-
-  if (stat.style.display === 'none' && typeof Android !== 'undefined') {
-    Android.showToast(text)
-  }
 }
 
 function toggleDisplay (eid, displayAs) {

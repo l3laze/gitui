@@ -22,6 +22,11 @@ public class WebAppInterface {
   }
 
   @JavascriptInterface
+  public int androidVersion () {
+    return android.os.Build.VERSION.SDK_INT;
+  }
+
+  @JavascriptInterface
   public void showToast(String text) {
     Toast.makeText(mContext, text, Toast.LENGTH_SHORT).show();
   }
