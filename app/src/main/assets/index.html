@@ -162,13 +162,13 @@
           <div class="w3-black line"></div>
           <br />
           <span class="add-control" id="repoSource">
-            <input type="text" class="w3-input" id="repoSourceInput" autocapitalize="off"/>
-            <label for="repoSourceInput">&nbsp;<b>Source URL</b></label>
+            <input type="text" class="w3-input" id="repoSource" autocapitalize="off"/>
+            <label for="repoSource">&nbsp;<b>Source URL</b></label>
             <br />
           </span>
           <span class="add-control" id="repoPath">
-            <input type="text" class="w3-input"  id="repoPathInput" autocapitalize="off" />
-            <label for="repoPathInput">&nbsp;<b>Path</b></label>
+            <input type="text" class="w3-input"  id="repoPath" autocapitalize="off" />
+            <label for="repoPath">&nbsp;<b>Path</b></label>
             <br />
           </span>
           <span class="add-control" id="cloneRecursively">
@@ -201,8 +201,8 @@
 'use strict'
 
 function capture (msg, source, line, column, err) {
-  setStatus('\"' + msg + '\" in \"' +
-    source + '\" at line ' + line +
+  setStatus('"' + msg + '" in "' +
+    source + '" at line ' + line +
     ', character ' + column + '.' + '\n' + err.toString())
 
   return true
@@ -450,6 +450,24 @@ function selfTest () {
 
 function runTests () {
   const tests = []
+  const test = function test (label, testFunc, fails = false) {
+    let pass = false
+    let error
+
+    try {
+      pass = testFunc()
+    } catch (e) {
+      error = e
+      pass = fails
+    }
+
+    tests.push({
+      name: label,
+      result: pass,
+      error,
+      fails
+    })
+  }
 
   /*
    * Search input tests
@@ -457,10 +475,9 @@ function runTests () {
   const search = document.getElementById('search')
   const searchInput = document.getElementById('searchInput')
 
-  search.click()
-  tests.push({
-    name: "Shows search input",
-    result: searchInput.style.display !== 'none'
+  test('Shows search input', function showSearch () {
+    search.click()
+    return searchInput.style.display !== 'none'
   })
 
   search.click()
@@ -476,8 +493,8 @@ function runTests () {
   const modal = document.getElementById('modal')
   const addModal = document.getElementById('addModal')
   const addClone = document.getElementById('addClone')
-  const repoSourceInput = document.getElementById('repoSourceInput')
-  const repoPathInput = document.getElementById('repoPathInput')
+  const repoSource = document.getElementById('repoSource')
+  const repoPath = document.getElementById('repoPath')
   const cloneRecursively = document.getElementById('cloneRecursively')
   const xmodal = document.getElementById('xmodal')
   const cancelModal = document.getElementById('cancelModal')
@@ -492,19 +509,19 @@ function runTests () {
   addClone.click()
   tests.push({
     name: 'Changes to clone tab',
-    result: (repoSourceInput.style.display !== 'none' && repoPathInput.style.display !== 'none' && cloneRecursively.style.display !== 'none')
+    result: (repoSource.style.display !== 'none' && repoPath.style.display !== 'none' && cloneRecursively.style.display !== 'none')
   })
 
   addInit.click()
   tests.push({
     name: 'Changes to init tab',
-    result: repoPathInput.style.display !== 'none'
+    result: (repoSource.style.display === 'none' && repoPath.style.display !== 'none' && cloneRecursively.style.display === 'none')
   })
 
   addImport.click()
   tests.push({
     name: 'Changes to import tab',
-    result: repoPathInput.style.display !== 'none'
+    result: (repoSource.style.display === 'none' && repoPath.style.display !== 'none' && cloneRecursively.style.display === 'none')
   })
 
   modal.click()
