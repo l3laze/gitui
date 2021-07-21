@@ -192,8 +192,8 @@ window.ontouchstart = function (event) {
 }
 */
 
-function testErr () {
-  throw new Error('Oops')
+function testErr (message) {
+  throw new Error(message)
 }
 
 /*

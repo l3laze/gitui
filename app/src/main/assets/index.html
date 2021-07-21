@@ -32,13 +32,17 @@
     <b id="titleText" onclick="toggleFooter()" class="w3-large w3-left">gitUI</b>
 
     <span class="w3-right">
-      <a class="w3-btn" onclick="toggleDisplay('searchInput', 'inline')">
+      <a class="w3-btn" onclick="window.location.search='?test'">
+        <i class="fa fa-exclamation"></i>
+        &nbsp;
+      </a>
+      <a class="w3-btn" id="search" onclick="toggleDisplay('searchInput', 'inline')">
         <i class="fa fa-search"></i>
       </a>
-      <a class="w3-btn" onclick="openModal('Add New Repository')">
+      <a class="w3-btn" id="add" onclick="openModal('Add New Repository')">
         <i class="fa fa-plus"></i>
       </a>
-      <a class="w3-btn" onclick="openModal('Settings')">
+      <a class="w3-btn" id="settings" onclick="openModal('Settings')">
         <i class="fa fa-cog"></i>
         &nbsp;
       </a>
@@ -86,7 +90,7 @@
           </a>
           <br />
           <i class="fa fa-calendar"></i>
-          <b class="commit-date">6/9/1969</b>
+          <b class="commit-date">9 Jun, 1969</b>
         </div>
       </li>
 
@@ -114,7 +118,7 @@
 
       <div class="w3-row">
         <header class="w3-container w3-black">
-          <span onclick="cancelModal()"
+          <span onclick="cancelModal()" id="xmodal"
           class="w3-btn w3-large w3-display-topright">&times;</span>
           <h4 id="modal_title">Modal Header</h4>
         </header>
@@ -149,9 +153,9 @@
       <form id="addModal" class="w3-container w3-padding">
 
         <div class="w3-bar">
-          <a class="w3-bar-item w3-btn w3-black add-btn" onclick="openTab('Clone', 'add-control', 'add-btn')">Clone</a>
-          <a class="w3-bar-item w3-btn add-btn" onclick="openTab('Init', 'add-control', 'add-btn')">Init</a>
-          <a class="w3-bar-item w3-btn add-btn" onclick="openTab('Import', 'add-control', 'add-btn')">Import</a>
+          <a class="w3-bar-item w3-btn w3-black add-btn" id="addClone" onclick="openTab('Clone', 'add-control', 'add-btn')">Clone</a>
+          <a class="w3-bar-item w3-btn add-btn" id="addInit" onclick="openTab('Init', 'add-control', 'add-btn')">Init</a>
+          <a class="w3-bar-item w3-btn add-btn" id="addImport" onclick="openTab('Import', 'add-control', 'add-btn')">Import</a>
         </div>
 
         <div id="addTab">
@@ -179,8 +183,8 @@
       <div class="w3-row w3-black w3-margin-top">
         <footer class="w3-container">
           <span class="w3-right  ">
-            <a class="w3-btn w3-large" onclick="cancelModal()">Cancel</a>
-            <a class="w3-btn w3-large" onclick="okModal()">Ok</a>
+            <a class="w3-btn w3-large" id="cancelModal" onclick="cancelModal()">Cancel</a>
+            <a class="w3-btn w3-large" id="okModal" onclick="okModal()">Ok</a>
           </span>
         </footer>
       </div>
@@ -194,34 +198,355 @@
 </div>
 
 <script>
-window.onerror = function unhandled (msg, source, line, column, err) {
+'use strict'
+
+function capture (msg, source, line, column, err) {
   setStatus('\"' + msg + '\" in \"' +
     source + '\" at line ' + line +
-    ', character ' + column + '.')
-  setStatus(err.toString())
-  setStatus(event.target.tagName + event.target.parentElement.tagName)
+    ', character ' + column + '.' + '\n' + err.toString())
 
   return true
 }
-</script>
 
-<script>
-  pullToRefresh({
-    container: document.querySelector('.container'),
-    animates: ptrAnimatesMaterial,
+window.onerror = capture
 
-    refresh() {
-      return new Promise(resolve => {
-        if (document.getElementById('modal').style.display === 'none') {
-          window.location.reload(false)
-        }
+pullToRefresh({
+  container: document.querySelector('.container'),
+  animates: ptrAnimatesMaterial,
 
-        setTimeout(resolve, 2000)
-      })
+  refresh() {
+    setTimeout(function () {
+      window.location.search = ''
+    }, 750)
+  }
+})
+
+const fs = {
+  mkdir: Android.makeDir,
+  exists: Android.exists,
+  readdir: Android.readDir,
+  rimraf: Android.removePath,
+  readFile: Android.readFile,
+  writeFile: Android.writeFile
+}
+
+const path = {
+  resolve: Android.resolve,
+  normalize: Android.normalize,
+  relativize: Android.relativize
+}
+
+const stat = {
+  isFile: Android.isFile,
+  isDir: Android.isDir
+}
+
+function copyText (text) {
+  if (typeof Android !== 'undefined') {
+    Android.copyToClipboard(text)
+
+    if (parseInt(Android.androidVersion()) > 27) {
+      Android.showToast('Copied to Clip Tray')
     }
+  } else {
+    navigator.clipboard.writeText(text)
+      .then(function () {}, function () {})
+  }
+
+  event.stopPropagation()
+}
+
+function setStatus (text) {
+  const stat = document.getElementById('status')
+
+  if (stat.value !== '') {
+    stat.value += '\n'
+  }
+
+  stat.value += text
+  stat.scrollTop = stat.scrollHeight;
+}
+
+function toggleDisplay (eid, displayAs) {
+  const el = document.getElementById(eid)
+
+  if (el.style.display === 'none') {
+    el.style.display = displayAs
+
+    if (el.tagName === 'INPUT') {
+      el.focus()
+    }
+  } else {
+    el.style.display = 'none'
+  }
+}
+
+function toggleFooter () {
+  const statusArea = document.getElementById('status')
+
+  if (statusArea.style.display === 'none') {
+    statusArea.style.display = 'inline-block'
+    statusArea.scrollTop = statusArea.scrollHeight
+  } else {
+    statusArea.style.display = 'none'
+  }
+}
+
+function searchRepos (text) {
+  const repos = document.getElementsByClassName('repo-card')
+
+  text = text.toLowerCase()
+
+  for (let r of repos) {
+    let repoName = r.querySelector('.repo-name').innerText
+    if (text !== '' && repoName.indexOf(text) < 0) {
+      r.style.display = 'none'
+    } else {
+      r.style.display = 'block'
+    }
+  }
+}
+
+function createRepo (way) {
+  setStatus('Creating repo via ' + way + '...')
+}
+
+function openRepo (which) {
+  setStatus('Opening ' + which)
+  event.stopPropagation()
+}
+
+function pullRepo (which) {
+  const behind = event.target.querySelector('.commitsBehind')  || event.target.parentElement.querySelector('.commitsBehind')
+
+  behind.innerText = '0'
+
+  setStatus('Pulled ' + which)
+  event.stopPropagation()
+}
+
+function pushRepo (which) {
+  const ahead = event.target.querySelector('.commitsAhead') || event.target.parentElement.querySelector('.commitsAhead')
+
+  ahead.innerText = '0'
+
+  setStatus('Pushed ' + which)
+  event.stopPropagation()
+}
+
+function openModal (title) {
+  const modal = document.getElementById('modal')
+  let modes = [
+    'settings',
+    'add'
+  ]
+
+  for (let m of modes) {
+    if (title.toLowerCase().indexOf(m) === -1) {
+      document.getElementById(m + 'Modal').style.display = 'none'
+    } else {
+      document.getElementById(m + 'Modal').style.display = 'block'
+      modal['data-mode'] = m
+    }
+  }
+
+  modal.style.display = 'block'
+  document.getElementById('modal_title').innerText = title
+
+  setStatus('Opened modal for ' + title)
+}
+
+function cancelModal () {
+  document.getElementById('modal').style.display = 'none'
+
+  setStatus('Cancelled modal')
+}
+
+function okModal () {
+  const modal = document.getElementById('modal')
+  modal.style.display = 'none'
+
+  if (modal['data-mode'] === 'settings') {
+    // saveSettings()
+  } else {
+    createRepo(modal.querySelector('.add-btn.w3-black').innerText)
+  }
+}
+
+function openTab (which, whatClass, btnClass) {
+  const controls = {
+    clone: [ 'repoSource', 'repoPath', 'cloneRecursively'],
+    init: [ 'repoPath' ],
+    'import': [ 'repoPath' ],
+    app: [ 'settingsApp' ],
+    git: [ 'settingsGit' ]
+  }
+
+  const els = document.getElementsByClassName(whatClass)
+  const btns = document.getElementsByClassName(btnClass)
+
+  for (let e of els) {
+    e.style.display = 'none'
+  }
+
+  for (let b of btns) {
+    b.classList.remove('w3-black')
+  }
+
+  for (let c of controls[ which.toLowerCase() ]) {
+    let elem = document.getElementById(c)
+    elem.style.display = 'inline'
+  }
+
+  event.target.classList.add('w3-black')
+}
+
+window.onclick = function clickWin (event) {
+  if (event.target.className.indexOf('w3-modal') > -1) {
+    cancelModal()
+  }
+}
+
+/*
+window.ontouchstart = function (event) {
+  setStatus('Touching @ ' + event.target.tagName + ' of ' + event.target?.parentElement)
+}
+*/
+
+window.onload = function loadup () {
+  if (window.location.search === '?test') selfTest()
+}
+
+function selfTest () {
+  let passed = 0
+  let failed = 0
+  let total = 0
+
+  const tests = runTests()
+
+  const message = (function () {
+    const check = '✔'
+    const cross = '✕'
+
+    return tests.map(r => {
+      if (r.result || r.fails) passed++
+      else failed++
+
+      total++
+
+      return (r.result || r.fails ? check : cross) + ' ' + r.name
+    })
+    .join('\n')
+  }()) +
+  '\n\n' +
+  ((passed / total * 100) + '').substring(0,5) +
+  '% passed (' + passed + '/' + total + ').'
+  /* +
+  (failed !== 0 ? ', ' + failed + ' failed.' : '.')
+   */
+
+  setStatus(message)
+}
+
+function runTests () {
+  const tests = []
+
+  /*
+   * Search input tests
+   */
+  const search = document.getElementById('search')
+  const searchInput = document.getElementById('searchInput')
+
+  search.click()
+  tests.push({
+    name: "Shows search input",
+    result: searchInput.style.display !== 'none'
   })
-</script>
-<script src="script.js"><!--
+
+  search.click()
+  tests.push({
+    name: "Hides search input",
+    result: searchInput.style.display === 'none'
+  })
+
+  /*
+   *
+   */
+  const add = document.getElementById('add')
+  const modal = document.getElementById('modal')
+  const addModal = document.getElementById('addModal')
+  const addClone = document.getElementById('addClone')
+  const repoSourceInput = document.getElementById('repoSourceInput')
+  const repoPathInput = document.getElementById('repoPathInput')
+  const cloneRecursively = document.getElementById('cloneRecursively')
+  const xmodal = document.getElementById('xmodal')
+  const cancelModal = document.getElementById('cancelModal')
+  const okModal = document.getElementById('okModal')
+
+  add.click()
+  tests.push({
+    name: "Shows modal from add",
+    result: modal.style.display !== 'none' && addModal.style.display !== 'none'
+  })
+
+  addClone.click()
+  tests.push({
+    name: 'Changes to clone tab',
+    result: (repoSourceInput.style.display !== 'none' && repoPathInput.style.display !== 'none' && cloneRecursively.style.display !== 'none')
+  })
+
+  addInit.click()
+  tests.push({
+    name: 'Changes to init tab',
+    result: repoPathInput.style.display !== 'none'
+  })
+
+  addImport.click()
+  tests.push({
+    name: 'Changes to import tab',
+    result: repoPathInput.style.display !== 'none'
+  })
+
+  modal.click()
+  tests.push({
+    name: "Hides modal after click outside of it",
+    result: modal.style.display === 'none'
+  })
+
+  add.click()
+  xmodal.click()
+  tests.push({
+    name: "Hides modal when X is clicked",
+    result: modal.style.display === 'none'
+  })
+
+  add.click()
+  cancelModal.click()
+  tests.push({
+    name: "Hides modal when Cancel is clicked",
+    result: modal.style.display === 'none'
+  })
+
+  add.click()
+  okModal.click()
+  tests.push({
+    name: "Hides modal when Ok is clicked",
+    result: modal.style.display === 'none'
+  })
+
+  /*
+   * General error test
+   */
+  tests.push({
+    name: "Expected failure",
+    result: window.hello,
+    fails: true
+  })
+
+  document.getElementById('status').value = ''
+
+  return tests
+}
 --></script>
 </body>
 </html>

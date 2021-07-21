@@ -105,3 +105,7 @@ a.w3-btn:active, a.w3-btn:focus, a.w3-btn:hover {
 .tabInit, .tabImport {
   display: block;
 }
+
+.commit-date {}
+  margin-left: 10px;
+}
