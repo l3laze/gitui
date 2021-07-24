@@ -134,11 +134,7 @@
         <div class="w3-black line"></div>
         <br />
         <span id="settingsApp" class="settings-control">
-          <input type="text" id="app-thing1" class="w3-input" autocapitalize="off" />
-          <label for="app-thing1">&nbsp;<b>thing1</b></label>
-          <br />
-          <input type="text" id="app-thing2" class="w3-input" autocapitalize="off" />
-          <label for="app-thing2">&nbsp;<b>thing2</b></label>
+          <a class="w3-btn" onclick="initCustomization()">Init Customization</a>
         </span>
 
         <span id="settingsGit" style="display:none" class="settings-control">
@@ -401,6 +397,10 @@ function openTab (which, whatClass, btnClass) {
   event.target.classList.add('w3-black')
 }
 
+function initCustomization () {
+  setStatus('"' + Android.copyAssets('') + '"')
+}
+
 window.onclick = function clickWin (event) {
   if (event.target.className.indexOf('w3-modal') > -1) {
     cancelModal()
@@ -416,6 +416,10 @@ window.ontouchstart = function (event) {
 window.onload = function loadup () {
   if (window.location.search === '?test') selfTest()
 }
+
+/*
+ * Testing
+ */
 
 function selfTest () {
   let passed = 0

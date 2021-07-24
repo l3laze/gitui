@@ -3,6 +3,9 @@ import java.lang.String;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.FileOutputStream;
 
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -10,7 +13,8 @@ import java.nio.file.Paths;
 import android.webkit.JavascriptInterface;
 import android.content.Context;
 import android.widget.Toast;
-
+import android.content.res.AssetManager;
+import android.os.Environment;
 
 
 
@@ -90,17 +94,16 @@ public class WebAppInterface {
   }
 
   @JavascriptInterface
-  public String[] readDir (String path) {
-    String[] dirList;
+  public String readDir (String path) {
+    StringBuilder dirList = new StringBuilder();
     File d = new File(path);
     File[] list = d.listFiles();
-    dirList = new String[list.length];
  
     for (int i = 0; i < list. length; i++) {
-       dirList[ i ] = list[i].getName();
+       dirList.append("\n" + list[i].getName());
     }
  
-    return dirList;
+    return dirList.toString();
   }
 
   @JavascriptInterface
@@ -124,5 +127,59 @@ public class WebAppInterface {
     }
  
     return data;
+  }
+
+  @JavascriptInterface
+  public String copyAssets (String path) {
+    AssetManager am = mContext.getAssets();
+    String[] assets = null;
+    String fullPath = "";
+
+    try {
+      assets = am.list("");
+
+      if (assets.length == 0) {
+        copyFile(path);
+      } else {
+        fullPath = Environment.getExternalStorageDirectory().getAbsolutePath() + "/gitui/";
+        File dir = new File(fullPath);
+
+        if (!dir.exists()) dir.mkdir();
+
+        for (int i = 0; i < assets.length; i++) {
+          copyAssets(path + "/" + assets[i]);
+        }
+      }
+    } catch (IOException ioe) {
+        System.out.println(ioe.getMessage());
+    }
+
+    return fullPath;
+  }
+
+  @JavascriptInterface
+  public void copyFile (String filename) {
+    AssetManager am = mContext.getAssets();
+
+    InputStream in = null;
+    OutputStream out = null;
+    try {
+        in = am.open(filename);
+        String newFileName = Environment.getExternalStorageDirectory().getAbsolutePath() + "/gitui/" + filename;
+        out = new FileOutputStream(newFileName);
+
+        byte[] buffer = new byte[1024];
+        int read;
+        while ((read = in.read(buffer)) != -1) {
+            out.write(buffer, 0, read);
+        }
+        in.close();
+        in = null;
+        out.flush();
+        out.close();
+        out = null;
+    } catch (Exception e) {
+      System.out.println(e.getMessage());
+    }
   }
 }
