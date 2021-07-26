@@ -13,6 +13,7 @@
   <link href="jiangfengming/pull-to-refresh/dist/styles/material/style.css" rel="stylesheet">
     <script src="jiangfengming/pull-to-refresh/dist/styles/material/animates.js"></script>
     <script src="jiangfengming/pull-to-refresh/dist/pullToRefresh.js"></script>
+    <script src="github-fetch/fetch.js"></script>
 </head>
 
 <body>
@@ -212,10 +213,40 @@ pullToRefresh({
 
   refresh() {
     setTimeout(function () {
-      window.location.search = ''
+      location.reload()
     }, 750)
   }
 })
+
+function setStatus (text) {
+  const stat = document.getElementById('status')
+
+  if (stat.value !== '') {
+    stat.value += '\n'
+  }
+
+  stat.value += text
+  stat.scrollTop = stat.scrollHeight;
+}
+
+/*
+window.ontouchstart = function (event) {
+  setStatus('Touching @ ' + event.target.tagName + ' of ' + event.target?.parentElement)
+}
+*/
+
+window.onload = function loadup () {
+  setStatus(window.location)
+  if (window.location.search === '?test') selfTest()
+}
+
+function initCustomization () {
+  const externalHome = Android.copyAssets('gitui')
+  setStatus(externalHome)
+  setTimeout(function () {
+    window.location = externalHome + '/index.html'
+  }, 1000)
+}
 
 const fs = {
   mkdir: Android.makeDir,
@@ -250,17 +281,6 @@ function copyText (text) {
   }
 
   event.stopPropagation()
-}
-
-function setStatus (text) {
-  const stat = document.getElementById('status')
-
-  if (stat.value !== '') {
-    stat.value += '\n'
-  }
-
-  stat.value += text
-  stat.scrollTop = stat.scrollHeight;
 }
 
 function toggleDisplay (eid, displayAs) {
@@ -397,24 +417,10 @@ function openTab (which, whatClass, btnClass) {
   event.target.classList.add('w3-black')
 }
 
-function initCustomization () {
-  setStatus('"' + Android.copyAssets('') + '"')
-}
-
 window.onclick = function clickWin (event) {
   if (event.target.className.indexOf('w3-modal') > -1) {
     cancelModal()
   }
-}
-
-/*
-window.ontouchstart = function (event) {
-  setStatus('Touching @ ' + event.target.tagName + ' of ' + event.target?.parentElement)
-}
-*/
-
-window.onload = function loadup () {
-  if (window.location.search === '?test') selfTest()
 }
 
 /*

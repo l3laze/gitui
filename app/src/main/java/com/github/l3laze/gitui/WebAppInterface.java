@@ -1,5 +1,4 @@
 package com.github.l3laze.gitui;
-import java.lang.String;
 
 import java.io.File;
 import java.io.IOException;
@@ -19,59 +18,60 @@ import android.os.Environment;
 
 
 public class WebAppInterface {
-  Context mContext;
+  static Context mContext;
+  static AssetManager assetManager;
 
-  WebAppInterface(Context c) {
+  WebAppInterface (Context c) {
     mContext = c;
   }
 
   @JavascriptInterface
-  public int androidVersion () {
+  public static int androidVersion () {
     return android.os.Build.VERSION.SDK_INT;
   }
 
   @JavascriptInterface
-  public void showToast(String text) {
+  public static void showToast(String text) {
     Toast.makeText(mContext, text, Toast.LENGTH_SHORT).show();
   }
 
   @JavascriptInterface
-  public void copyToClipboard(String text) {
+  public static void copyToClipboard(String text) {
     MainActivity.getInstance().copyTextToClipboard(text);
   }
 
   @JavascriptInterface
-  public String normalize (String path) {
+  public static String normalize (String path) {
     return Paths.get(path).normalize().toString();
   }
 
   @JavascriptInterface
-  public String relativize (String from, String to) {
+  public static  String relativize (String from, String to) {
     return Paths.get(from).relativize(Paths.get(to)).toString();
   }
 
   @JavascriptInterface
-  public String resolve (String path, String other) {
+  public static String resolve (String path, String other) {
     return Paths.get(path).resolve(other).toString();
   }
 
   @JavascriptInterface
-  public boolean isFile (String path) {
+  public static boolean isFile (String path) {
     return new File(path).isFile();
   }
  
   @JavascriptInterface
-  public boolean isDir (String path) {
+  public static boolean isDir (String path) {
     return new File(path).isFile();
   }
 
   @JavascriptInterface
-  public Boolean fileExists (String path) {
+  public static Boolean fileExists (String path) {
     return Files.exists(Paths.get(path));
   }
  
   @JavascriptInterface
-  public void makeDir (String path) {
+  public static void makeDir (String path) {
     try {
       Files.createDirectories(Paths.get(path));
     } catch (IOException ioe) {
@@ -80,7 +80,7 @@ public class WebAppInterface {
   }
  
   @JavascriptInterface
-  public boolean removePath (String path) {
+  public static boolean removePath (String path) {
     File p = new File(path);
     File[] contents = p.listFiles();
  
@@ -94,7 +94,7 @@ public class WebAppInterface {
   }
 
   @JavascriptInterface
-  public String readDir (String path) {
+  public static String readDir (String path) {
     StringBuilder dirList = new StringBuilder();
     File d = new File(path);
     File[] list = d.listFiles();
@@ -107,7 +107,7 @@ public class WebAppInterface {
   }
 
   @JavascriptInterface
-  public void writeFile (String path, String data) {
+  public static void writeFile (String path, String data) {
     try {
       Files.write(Paths.get(path), data.getBytes());
     } catch (IOException ioe) {
@@ -116,13 +116,13 @@ public class WebAppInterface {
   }
 
   @JavascriptInterface
-  public String readFile (String path) {
+  public static String readFile (String path) {
     String data;
  
     try {
       data = new String (Files.readAllBytes(Paths.get(path)));
-    } catch (IOException ioe) {
-      ioe.printStackTrace();
+    } catch (Exception e) {
+      e.printStackTrace();
       data = "";
     }
  
@@ -130,56 +130,63 @@ public class WebAppInterface {
   }
 
   @JavascriptInterface
-  public String copyAssets (String path) {
-    AssetManager am = mContext.getAssets();
-    String[] assets = null;
-    String fullPath = "";
+  public static String copyAssets(String path) {
+    File targetFolder;
 
     try {
-      assets = am.list("");
+      // Log.i(LOG_TAG, "Copying " + path);
+      // StringBuilder contents = new StringBuilder();
+      targetFolder = new File(Environment.getExternalStorageDirectory().getAbsolutePath());
+      assetManager = mContext.getAssets();
+      String sources[] = assetManager.list(path);
 
-      if (assets.length == 0) {
-        copyFile(path);
+      if (sources.length == 0) {
+        // contents.append("Copying " + path + " @ ");
+        // contents.append(copyAssetFileToFolder(path, targetFolder) + " bytes");
+        copyAssetFileToFolder(path, targetFolder);
       } else {
-        fullPath = Environment.getExternalStorageDirectory().getAbsolutePath() + "/gitui/";
-        File dir = new File(fullPath);
+          if (path.startsWith("images") || path.startsWith("sounds") || path.startsWith("webkit")) {
+            // Log.i(LOG_TAG, "  > Skipping " + path);
+          }
 
-        if (!dir.exists()) dir.mkdir();
+          File targetDir = new File(targetFolder, path);
+          targetDir.mkdirs();
+          if (!targetDir.exists()) throw new Exception("Grant storage permissions to create directories.");
 
-        for (int i = 0; i < assets.length; i++) {
-          copyAssets(path + "/" + assets[i]);
-        }
+          for (String source : sources) {
+            String fullSourcePath = path.equals("") ? source : (path + File.separator + source);
+            // contents.append(copyAssets(fullSourcePath) + "\n");
+            copyAssets(fullSourcePath);
+          }
       }
-    } catch (IOException ioe) {
-        System.out.println(ioe.getMessage());
-    }
 
-    return fullPath;
+      // return contents.toString().replace("\n\n", "\n");
+      return targetFolder.toString() + "/gitui";
+    } catch (Exception e) {
+      // return "error: " + e.toString();
+      return "";
+    }
   }
 
-  @JavascriptInterface
-  public void copyFile (String filename) {
-    AssetManager am = mContext.getAssets();
+  private static String copyAssetFileToFolder(String fullAssetPath, File targetBasePath) throws Exception {
+    InputStream in = assetManager.open(fullAssetPath);
+    File outFile = new File(targetBasePath, fullAssetPath);
+    OutputStream out = new FileOutputStream(outFile);
 
-    InputStream in = null;
-    OutputStream out = null;
-    try {
-        in = am.open(filename);
-        String newFileName = Environment.getExternalStorageDirectory().getAbsolutePath() + "/gitui/" + filename;
-        out = new FileOutputStream(newFileName);
+    byte[] buffer = new byte[16 * 1024];
+    int read;
+    long total = 0;
 
-        byte[] buffer = new byte[1024];
-        int read;
-        while ((read = in.read(buffer)) != -1) {
-            out.write(buffer, 0, read);
-        }
-        in.close();
-        in = null;
-        out.flush();
-        out.close();
-        out = null;
-    } catch (Exception e) {
-      System.out.println(e.getMessage());
+    while ((read = in.read(buffer)) != -1) {
+      out.write(buffer, 0, read);
+      total += read;
     }
+
+    in.close();
+    out.flush();
+    out.close();
+
+    if (!outFile.exists()) throw new Exception("Grant storage permissions to read and write files.");
+    return "" + total;
   }
 }
