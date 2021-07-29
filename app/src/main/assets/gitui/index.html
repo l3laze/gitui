@@ -213,7 +213,7 @@ pullToRefresh({
 
   refresh() {
     setTimeout(function () {
-      location.reload()
+      location.search = ''
     }, 750)
   }
 })
@@ -235,37 +235,23 @@ window.ontouchstart = function (event) {
 }
 */
 
-window.onload = function loadup () {
+window.onload = function startUp () {
   setStatus(window.location)
+  setStatus('Storage permission? ' + Android.havePermission())
+
   if (window.location.search === '?test') selfTest()
 }
 
 function initCustomization () {
-  const externalHome = Android.copyAssets('gitui')
-  setStatus(externalHome)
-  setTimeout(function () {
-    window.location = externalHome + '/index.html'
-  }, 1000)
-}
-
-const fs = {
-  mkdir: Android.makeDir,
-  exists: Android.exists,
-  readdir: Android.readDir,
-  rimraf: Android.removePath,
-  readFile: Android.readFile,
-  writeFile: Android.writeFile
-}
-
-const path = {
-  resolve: Android.resolve,
-  normalize: Android.normalize,
-  relativize: Android.relativize
-}
-
-const stat = {
-  isFile: Android.isFile,
-  isDir: Android.isDir
+  if (Android.havePermission()) {
+    const externalHome = Android.copyAssets('gitui')
+    setStatus(externalHome)
+    setTimeout(function () {
+      window.location = externalHome + '/index.html'
+    }, 1000)
+  } else {
+    alert('Grant external storage permission(s) to use this feature.')
+  }
 }
 
 function copyText (text) {
