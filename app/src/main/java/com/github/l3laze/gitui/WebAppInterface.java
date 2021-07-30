@@ -17,9 +17,9 @@ import android.os.Environment;
 
 
 public class WebAppInterface {
-	static Context mContext;
-	static AssetManager assetManager;
-  static boolean storagePermission = false;
+	protected static Context mContext;
+	protected static AssetManager assetManager;
+  protected static boolean storagePermission = false;
 
 	WebAppInterface (Context c) {
 		mContext = c;

@@ -106,6 +106,6 @@ a.w3-btn:active, a.w3-btn:focus, a.w3-btn:hover {
   display: block;
 }
 
-.commit-date {}
+.commit-date {
   margin-left: 10px;
 }

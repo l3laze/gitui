@@ -5,11 +5,9 @@ import android.app.Activity;
 import android.view.Window;
 import android.widget.Toast;
 import android.os.Bundle;
-import android.os.Build;
 import android.os.Environment;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
-import android.webkit.PermissionRequest;
 import android.webkit.WebChromeClient;
 import android.content.Context;
 import android.content.ClipData;
@@ -20,7 +18,6 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
 import com.github.l3laze.gitui.R;
-import java.lang.reflect.*;
 
 
 public class MainActivity extends Activity {
