@@ -134,6 +134,11 @@ public class WebAppInterface {
 		return data;
 	}
 
+  @JavascriptInterface
+  public static String homeFolder () {
+    return Environment.getExternalStorageDirectory().getAbsolutePath();
+	}
+
 	@JavascriptInterface
 	public static String copyAssets (String path) {
 		File targetFolder;
@@ -141,7 +146,7 @@ public class WebAppInterface {
 		try {
 			// Log.i(LOG_TAG, "Copying " + path);
 			// StringBuilder contents = new StringBuilder();
-			targetFolder = new File(Environment.getExternalStorageDirectory().getAbsolutePath());
+			targetFolder = new File(MainActivity.getInstance().webAppInterface.homeFolder());
 			assetManager = mContext.getAssets();
 			String sources[] = assetManager.list(path);
 

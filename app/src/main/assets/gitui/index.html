@@ -197,6 +197,15 @@
 <script>
 'use strict'
 
+const fs = {
+  readFile: async function readFile (path, options) {
+    if (Android.havePermission()) return Android.readFile(path, options)
+  },
+  writeFile: async function writeFile (path, data, options) {
+    if (Android.havePermission()) Android.writeFile(path, data, options)
+  }
+}
+
 function capture (msg, source, line, column, err) {
   setStatus('"' + msg + '" in "' +
     source + '" at line ' + line +
@@ -556,7 +565,27 @@ function runTests () {
     fails: true
   })
 
-  document.getElementById('status').value = ''
+  /*
+   *
+   */
+  tests.push({
+    name: 'Write file.',
+    result: (async function () {
+      await fs.writeFile(Android.homeFolder() + '/.gitui-test-file.txt', 'Hello, world!')
+      return true
+    }())
+  })
+
+  tests.push({
+    name: 'Read file.',
+    result: (async function () {
+      const data = await fs.readFile(Android.homeFolder() + '/.gitui-test-file.txt')
+
+      return data === 'Hello, world!'
+    }())
+  })
+
+  // document.getElementById('status').value = ''
 
   return tests
 }
