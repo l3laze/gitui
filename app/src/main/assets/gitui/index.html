@@ -197,15 +197,6 @@
 <script>
 'use strict'
 
-const fs = {
-  readFile: async function readFile (path, options) {
-    if (Android.havePermission()) return Android.readFile(path, options)
-  },
-  writeFile: async function writeFile (path, data, options) {
-    if (Android.havePermission()) Android.writeFile(path, data, options)
-  }
-}
-
 function capture (msg, source, line, column, err) {
   setStatus('"' + msg + '" in "' +
     source + '" at line ' + line +
@@ -419,59 +410,86 @@ window.onclick = function clickWin (event) {
 }
 
 /*
+ * Filesystem
+ */
+
+const fs = {
+  promises: {
+    readFile: async function readFile (path, options = null) {
+      if (Android.havePermission()) return (await Android.readFile(path))
+    },
+    writeFile: async function writeFile (path, data) {
+      if (Android.havePermission()) await Android.writeFile(path, data)
+    }
+  }
+}
+
+/*
  * Testing
  */
 
-function selfTest () {
+async function selfTest () {
   let passed = 0
-  let failed = 0
   let total = 0
 
-  const tests = runTests()
+  const tests = await runTests()
 
   const message = (function () {
-    const check = '✔'
-    const cross = '✕'
+    const check = '\u2714'
+    const cross = '\u274C'
 
     return tests.map(r => {
       if (r.result || r.fails) passed++
-      else failed++
 
       total++
 
-      return (r.result || r.fails ? check : cross) + ' ' + r.name
+      return (r.result || r.fails
+        ? check : cross) + ' ' + r.name +
+        (typeof r.error !== 'undefined'
+          ? '\n  ' + r.error : '')
     })
     .join('\n')
   }()) +
   '\n\n' +
   ((passed / total * 100) + '').substring(0,5) +
   '% passed (' + passed + '/' + total + ').'
-  /* +
-  (failed !== 0 ? ', ' + failed + ' failed.' : '.')
-   */
+
+  document.getElementById('status').value = ''
 
   setStatus(message)
 }
 
-function runTests () {
+async function runTests () {
   const tests = []
-  const test = function test (label, testFunc, fails = false) {
-    let pass = false
+  const _test = async function _test (name, testFunc, fails = false) {
+    let result = false
     let error
 
     try {
-      pass = testFunc()
+      if (testFunc.constructor.name === 'AsyncFunction') {
+        result = (await testFunc())
+      } else {
+        result = testFunc()
+      }
     } catch (e) {
       error = e
-      pass = fails
+      result = fails
     }
 
     tests.push({
-      name: label,
-      result: pass,
+      name,
+      result,
       error,
       fails
     })
+  }
+
+  const test = async function test (name, func) {
+    await _test(name, func, false)
+  }
+
+  test.fails = async function fails (name, func) {
+    await _test(name,func, true)
   }
 
   /*
@@ -485,10 +503,9 @@ function runTests () {
     return searchInput.style.display !== 'none'
   })
 
-  search.click()
-  tests.push({
-    name: "Hides search input",
-    result: searchInput.style.display === 'none'
+  test('Hides search input', function () {
+    search.click()
+    return searchInput.style.display === 'none'
   })
 
   /*
@@ -505,87 +522,74 @@ function runTests () {
   const cancelModal = document.getElementById('cancelModal')
   const okModal = document.getElementById('okModal')
 
-  add.click()
-  tests.push({
-    name: "Shows modal from add",
-    result: modal.style.display !== 'none' && addModal.style.display !== 'none'
+  test('Shows modal from add', function () {
+    add.click()
+    return (modal.style.display !== 'none' && addModal.style.display !== 'none')
   })
 
-  addClone.click()
-  tests.push({
-    name: 'Changes to clone tab',
-    result: (repoSource.style.display !== 'none' && repoPath.style.display !== 'none' && cloneRecursively.style.display !== 'none')
+  test('Changes to clone tab', function () {
+    addClone.click()
+    return (repoSource.style.display !== 'none' && repoPath.style.display !== 'none' && cloneRecursively.style.display !== 'none')
   })
 
-  addInit.click()
-  tests.push({
-    name: 'Changes to init tab',
-    result: (repoSource.style.display === 'none' && repoPath.style.display !== 'none' && cloneRecursively.style.display === 'none')
+  test('Changes to init tab', function () {
+    addInit.click()
+    return (repoSource.style.display === 'none' && repoPath.style.display !== 'none' && cloneRecursively.style.display === 'none')
   })
 
-  addImport.click()
-  tests.push({
-    name: 'Changes to import tab',
-    result: (repoSource.style.display === 'none' && repoPath.style.display !== 'none' && cloneRecursively.style.display === 'none')
+  test('Changes to import tab', function () {
+    addImport.click()
+    return (repoSource.style.display === 'none' && repoPath.style.display !== 'none' && cloneRecursively.style.display === 'none')
   })
 
-  modal.click()
-  tests.push({
-    name: "Hides modal after click outside of it",
-    result: modal.style.display === 'none'
+  test('Hides modal after click outside of it', function () {
+    modal.click()
+    return modal.style.display === 'none'
   })
 
-  add.click()
+  test('Hides modal when X is clicked', function () {
+    add.click()
   xmodal.click()
-  tests.push({
-    name: "Hides modal when X is clicked",
-    result: modal.style.display === 'none'
+    return modal.style.display === 'none'
   })
 
-  add.click()
-  cancelModal.click()
-  tests.push({
-    name: "Hides modal when Cancel is clicked",
-    result: modal.style.display === 'none'
+  test('Hides modal when Cancel is clicked', function () {
+    add.click()
+    cancelModal.click()
+    return modal.style.display === 'none'
   })
 
-  add.click()
-  okModal.click()
-  tests.push({
-    name: "Hides modal when Ok is clicked",
-    result: modal.style.display === 'none'
+  test('Hides modal when Ok is clicked', function () {
+    add.click()
+    okModal.click()
+    return modal.style.display === 'none'
   })
 
   /*
-   * General error test
+   * General error handling tests
    */
-  tests.push({
-    name: "Expected failure",
-    result: window.hello,
-    fails: true
+  test.fails('Expected failure from false', function () {
+    setStatus('Expecting failure 1')
+    return false
+  })
+
+  test.fails('Expected failure from throw', function () {
+    setStatus('Expecting failure 2')
+    throw new Error('Oops')
   })
 
   /*
-   *
+   * File I/O tests
    */
-  tests.push({
-    name: 'Write file.',
-    result: (async function () {
-      await fs.writeFile(Android.homeFolder() + '/.gitui-test-file.txt', 'Hello, world!')
-      return true
-    }())
+  await test('Write file', async function () {
+    await fs.promises.writeFile(Android.homeFolder() + '/.gitui-test-file.txt', 'Hello, world!')
+    return true
   })
 
-  tests.push({
-    name: 'Read file.',
-    result: (async function () {
-      const data = await fs.readFile(Android.homeFolder() + '/.gitui-test-file.txt')
-
-      return data === 'Hello, world!'
-    }())
+  await test('Read file', async function () {
+    const data = await fs.promises.readFile(Android.homeFolder() + '/.gitui-test-file.txt')
+    return data === 'Hello, world!'
   })
-
-  // document.getElementById('status').value = ''
 
   return tests
 }

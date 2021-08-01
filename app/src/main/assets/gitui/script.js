@@ -1,23 +1,60 @@
 'use strict'
 
-const fs = {
-  mkdir: Android.makeDir,
-  exists: Android.exists,
-  readdir: Android.readDir,
-  rimraf: Android.removePath,
-  readFile: Android.readFile,
-  writeFile: Android.writeFile
+function capture (msg, source, line, column, err) {
+  setStatus('"' + msg + '" in "' +
+    source + '" at line ' + line +
+    ', character ' + column + '.' + '\n' + err.toString())
+
+  return true
 }
 
-const path = {
-  resolve: Android.resolve,
-  normalize: Android.normalize,
-  relativize: Android.relativize
+window.onerror = capture
+
+pullToRefresh({
+  container: document.querySelector('.container'),
+  animates: ptrAnimatesMaterial,
+
+  refresh() {
+    setTimeout(function () {
+      location.search = ''
+    }, 750)
+  }
+})
+
+function setStatus (text) {
+  const stat = document.getElementById('status')
+
+  if (stat.value !== '') {
+    stat.value += '\n'
+  }
+
+  stat.value += text
+  stat.scrollTop = stat.scrollHeight;
 }
 
-const stat = {
-  isFile: Android.isFile,
-  isDir: Android.isDir
+/*
+window.ontouchstart = function (event) {
+  setStatus('Touching @ ' + event.target.tagName + ' of ' + event.target?.parentElement)
+}
+*/
+
+window.onload = function startUp () {
+  setStatus(window.location)
+  setStatus('Storage permission? ' + Android.havePermission())
+
+  if (window.location.search === '?test') selfTest()
+}
+
+function initCustomization () {
+  if (Android.havePermission()) {
+    const externalHome = Android.copyAssets('gitui')
+    setStatus(externalHome)
+    setTimeout(function () {
+      window.location = externalHome + '/index.html'
+    }, 1000)
+  } else {
+    alert('Grant external storage permission(s) to use this feature.')
+  }
 }
 
 function copyText (text) {
@@ -33,17 +70,6 @@ function copyText (text) {
   }
 
   event.stopPropagation()
-}
-
-function setStatus (text) {
-  const stat = document.getElementById('status')
-
-  if (stat.value !== '') {
-    stat.value += '\n'
-  }
-
-  stat.value += text
-  stat.scrollTop = stat.scrollHeight;
 }
 
 function toggleDisplay (eid, displayAs) {
@@ -187,58 +213,186 @@ window.onclick = function clickWin (event) {
 }
 
 /*
-window.ontouchstart = function (event) {
-  setStatus('Touching @ ' + event.target.tagName + ' of ' + event.target?.parentElement)
-}
-*/
+ * Filesystem
+ */
 
-function testErr (message) {
-  throw new Error(message)
+const fs = {
+  promises: {
+    readFile: async function readFile (path, options = null) {
+      if (Android.havePermission()) return (await Android.readFile(path))
+    },
+    writeFile: async function writeFile (path, data) {
+      if (Android.havePermission()) await Android.writeFile(path, data)
+    }
+  }
 }
 
 /*
-// Prevent pull to refresh
-// https://stackoverflow.com/a/55832568/7665043
-// by Ruben Vreeken
-(function() {
-    var touchStartHandler,
-        touchMoveHandler,
-        touchPoint;
+ * Testing
+ */
 
-    // Only needed for touch events on chrome.
-    if ((window.chrome || navigator.userAgent.match("CriOS"))
-        && "ontouchstart" in document.documentElement) {
-        touchStartHandler = function() {
-            // Only need to handle single-touch cases
-            touchPoint = event.touches.length === 1 ? event.touches[0].clientY : null;
-        };
+async function selfTest () {
+  let passed = 0
+  let total = 0
 
-        touchMoveHandler = function(event) {
-            var newTouchPoint;
+  const tests = await runTests()
 
-            // Only need to handle single-touch cases
-            if (event.touches.length !== 1) {
-                touchPoint = null;
+  const message = (function () {
+    const check = '\u2714'
+    const cross = '\u274C'
 
-                return;
-            }
+    return tests.map(r => {
+      if (r.result || r.fails) passed++
 
-            // We only need to defaultPrevent when scrolling up
-            newTouchPoint = event.touches[0].clientY;
-            if (newTouchPoint > touchPoint) {
-                event.preventDefault();
-            }
-            touchPoint = newTouchPoint;
-        };
+      total++
 
-        document.addEventListener("touchstart", touchStartHandler, {
-            passive: false
-        });
+      return (r.result || r.fails
+        ? check : cross) + ' ' + r.name +
+        (typeof r.error !== 'undefined'
+          ? '\n  ' + r.error : '')
+    })
+    .join('\n')
+  }()) +
+  '\n\n' +
+  ((passed / total * 100) + '').substring(0,5) +
+  '% passed (' + passed + '/' + total + ').'
 
-        document.addEventListener("touchmove", touchMoveHandler, {
-            passive: false
-        });
+  // document.getElementById('status').value = ''
 
+  setStatus(message)
+}
+
+async function runTests () {
+  const tests = []
+  const _test = async function _test (name, testFunc, fails = false) {
+    let result = false
+    let error
+
+    try {
+      if (testFunc.constructor.name === 'AsyncFunction') {
+        result = (await testFunc())
+      } else {
+        result = testFunc()
+      }
+    } catch (e) {
+      error = e
+      result = fails
     }
-})()
-*/
+
+    tests.push({
+      name,
+      result,
+      error,
+      fails
+    })
+  }
+
+  const test = async function test (name, func) {
+    await _test(name, func, false)
+  }
+
+  test.fails = async function fails (name, func) {
+    await _test(name,func, true)
+  }
+
+  /*
+   * Search input tests
+   */
+  const search = document.getElementById('search')
+  const searchInput = document.getElementById('searchInput')
+
+  test('Shows search input', function showSearch () {
+    search.click()
+    return searchInput.style.display !== 'none'
+  })
+
+  test('Hides search input', function () {
+    search.click()
+    return searchInput.style.display === 'none'
+  })
+
+  /*
+   *
+   */
+  const add = document.getElementById('add')
+  const modal = document.getElementById('modal')
+  const addModal = document.getElementById('addModal')
+  const addClone = document.getElementById('addClone')
+  const repoSource = document.getElementById('repoSource')
+  const repoPath = document.getElementById('repoPath')
+  const cloneRecursively = document.getElementById('cloneRecursively')
+  const xmodal = document.getElementById('xmodal')
+  const cancelModal = document.getElementById('cancelModal')
+  const okModal = document.getElementById('okModal')
+
+  test('Shows modal from add', function () {
+    add.click()
+    return (modal.style.display !== 'none' && addModal.style.display !== 'none')
+  })
+
+  test('Changes to clone tab', function () {
+    addClone.click()
+    return (repoSource.style.display !== 'none' && repoPath.style.display !== 'none' && cloneRecursively.style.display !== 'none')
+  })
+
+  test('Changes to init tab', function () {
+    addInit.click()
+    return (repoSource.style.display === 'none' && repoPath.style.display !== 'none' && cloneRecursively.style.display === 'none')
+  })
+
+  test('Changes to import tab', function () {
+    addImport.click()
+    return (repoSource.style.display === 'none' && repoPath.style.display !== 'none' && cloneRecursively.style.display === 'none')
+  })
+
+  test('Hides modal after click outside of it', function () {
+    modal.click()
+    return modal.style.display === 'none'
+  })
+
+  test('Hides modal when X is clicked', function () {
+    add.click()
+  xmodal.click()
+    return modal.style.display === 'none'
+  })
+
+  test('Hides modal when Cancel is clicked', function () {
+    add.click()
+    cancelModal.click()
+    return modal.style.display === 'none'
+  })
+
+  test('Hides modal when Ok is clicked', function () {
+    add.click()
+    okModal.click()
+    return modal.style.display === 'none'
+  })
+
+  /*
+   * General error handling tests
+   */
+  test.fails('Expected failure from false', function () {
+    setStatus('Expecting failure 1')
+    return false
+  })
+
+  test.fails('Expected failure from throw', function () {
+    setStatus('Expecting failure 2')
+    throw new Error('Oops')
+  })
+
+  /*
+   * File I/O tests
+   */
+  await test('Write file', async function () {
+    await fs.promises.writeFile(Android.homeFolder() + '/.gitui-test-file.txt', 'Hello, world!')
+    return true
+  })
+
+  await test('Read file', async function () {
+    const data = await fs.promises.readFile(Android.homeFolder() + '/.gitui-test-file.txt')
+    return data === 'Hello, world!'
+  })
+
+  return tests
+}
