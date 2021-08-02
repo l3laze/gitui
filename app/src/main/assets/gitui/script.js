@@ -239,7 +239,7 @@ const fs = {
     readdir: async function readdir (path) {
       if (Android.havePermission()) await Android.readdir(path)
     },
-    'delete': async function delete (path) {
+    'delete': async function deletePath (path) {
       if (Android.havePermission()) await Android.delete(path)
     },
     rmdir: async function rmdir (path) {
@@ -253,7 +253,7 @@ const fs = {
     },
     symlink: async function symlink (path) {
       if (Android.havePermission()) await Android.createSymlink(path)
-    }l
+    }
   }
 }
 
