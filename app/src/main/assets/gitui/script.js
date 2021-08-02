@@ -218,12 +218,42 @@ window.onclick = function clickWin (event) {
 
 const fs = {
   promises: {
-    readFile: async function readFile (path, options = null) {
+    readFile: async function readFile (path) {
       if (Android.havePermission()) return (await Android.readFile(path))
     },
     writeFile: async function writeFile (path, data) {
       if (Android.havePermission()) await Android.writeFile(path, data)
-    }
+    },
+    mkdir: async function mkdir (path, data) {
+      if (Android.havePermission()) await Android.makeDirectory(path)
+    },
+    rename: async function rename (from, to) {
+      if (Android.havePermission()) await Android.move(from, to)
+    },
+    stat: async function stat (path) {
+      if (Android.havePermission()) await Android.stat(path)
+    },
+    lstat: async function lstat (path) {
+      if (Android.havePermission()) await Android.lstat(path)
+    },
+    readdir: async function readdir (path) {
+      if (Android.havePermission()) await Android.readdir(path)
+    },
+    'delete': async function delete (path) {
+      if (Android.havePermission()) await Android.delete(path)
+    },
+    rmdir: async function rmdir (path) {
+      if (Android.havePermission()) await Android.rmdir(path)
+    },
+    readLink: async function readLink (path) {
+      if (Android.havePermission()) await Android.readSymlink(path)
+    },
+    du: async function du (path) {
+      if (Android.havePermission()) await Android.size(path)
+    },
+    symlink: async function symlink (path) {
+      if (Android.havePermission()) await Android.createSymlink(path)
+    }l
   }
 }
 
@@ -240,24 +270,28 @@ async function selfTest () {
   const message = (function () {
     const check = '\u2714'
     const cross = '\u274C'
+    const lines = []
 
-    return tests.map(r => {
+    for (let r of tests) {
+      if (r.skip) continue
+
       if (r.result || r.fails) passed++
 
       total++
 
-      return (r.result || r.fails
+      lines.push((r.result || r.fails
         ? check : cross) + ' ' + r.name +
         (typeof r.error !== 'undefined'
-          ? '\n  ' + r.error : '')
-    })
-    .join('\n')
+          ? '\n  Thrown - ' + r.error : ''))
+    }
+
+    return lines.join('\n')
   }()) +
   '\n\n' +
   ((passed / total * 100) + '').substring(0,5) +
   '% passed (' + passed + '/' + total + ').'
 
-  // document.getElementById('status').value = ''
+  document.getElementById('status').value = ''
 
   setStatus(message)
 }
@@ -293,6 +327,13 @@ async function runTests () {
 
   test.fails = async function fails (name, func) {
     await _test(name,func, true)
+  }
+
+  test.skip = function skip (name, func) {
+    tests.push({
+      name,
+      skip: true
+    })
   }
 
   /*
@@ -393,6 +434,16 @@ async function runTests () {
     const data = await fs.promises.readFile(Android.homeFolder() + '/.gitui-test-file.txt')
     return data === 'Hello, world!'
   })
+
+  /*
+   * Skip test
+   */
+
+  test.skip('Skipping test', function () {
+    setStatus('This should have been skipped.')
+    throw new Error('This should not have been thrown.')
+  })
+  
 
   return tests
 }

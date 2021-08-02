@@ -14,6 +14,7 @@ import android.content.Context;
 import android.widget.Toast;
 import android.content.res.AssetManager;
 import android.os.Environment;
+import android.system.*;
 
 
 public class WebAppInterface {
@@ -60,6 +61,46 @@ public class WebAppInterface {
 		return Paths.get(path).resolve(other).toString();
 	}
 
+  public static String buildStats(StructStat stats) {
+    StringBuilder sb = new StringBuilder();
+    sb.append("{");
+    sb.append("dev:" + stats.st_dev);
+    sb.append(",ino:" + stats.st_ino);
+    sb.append(",mode:" + stats.st_mode);
+    sb.append(",nlink:" + stats.st_nlink);
+    sb.append(",uid:" + stats.st_uid);
+    sb.append(",gid:" + stats.st_gid);
+    sb.append(",rdev:" + stats.st_rdev);
+    sb.append(",size:" + stats.st_size);
+    sb.append(",blksize:" + stats.st_blksize);
+    sb.append(",blocks:" + stats.st_blocks);
+    sb.append(",atimeMs:" + stats.st_atime);
+    sb.append(",mtimeMs:" + stats.st_mtime);
+    sb.append(",ctimeMs:" + stats.st_ctime);
+    sb.append(",birthtime:" + stats.st_mtime);
+    sb.append("}");
+
+    return sb.toString();
+  }
+
+  @JavascriptInterface
+  public static String lstat(String path) {
+    try {
+      return buildStats(android.system.Os.lstat(path));
+    } catch (ErrnoException ee) {
+      return "{}";
+    }
+  }
+
+  @JavascriptInterface
+  public static String stat(String path) {
+    try {
+      return buildStats(android.system.Os.stat(path));
+    } catch (ErrnoException ee) {
+      return "{}";
+    }
+  }
+
 	@JavascriptInterface
 	public static boolean isFile (String path) {
 		return new File(path).isFile();
@@ -70,46 +111,78 @@ public class WebAppInterface {
 		return new File(path).isFile();
 	}
 
+  @JavascriptInterface
+  public static boolean isSymlink (String path) {
+    return Files.isSymbolicLink(Paths.get(path));
+	}
+
 	@JavascriptInterface
 	public static Boolean fileExists (String path) {
-		return Files.exists(Paths.get(path)) && Files.isReadable(Paths.get(path));
+		return new File(path).exists();
 	}
 
 	@JavascriptInterface
-	public static void makeDir (String path) {
-		try {
-			Files.createDirectories(Paths.get(path));
-		}
-    catch (IOException ioe) {
-		}
+	public static void makeDirectory (String path) {
+		new File(path).mkdir();
 	}
 
+  @JavascriptInterface
+	public static void delete (String path) {
+    try {
+      Files.delete(Paths.get(path));
+    } catch (IOException ioe) {
+    }
+  }
+
 	@JavascriptInterface
-	public static boolean removePath (String path) {
-		File p = new File(path);
-		File[] contents = p.listFiles();
-
-		if (contents != null) {
-			for (File f : contents) {
-				removePath(f.toString());
-			}
-		}
-
-		return p.delete();
+	public static void rmdir (String path) {
+    File dir = new File(path); 
+    if (dir.isDirectory()) {
+      String[] children = dir.list();
+      for (int i = 0; i < children.length; i++) {
+        new File(dir, children[i]).delete();
+      }
+    }
 	}
 
 	@JavascriptInterface
 	public static String readDir (String path) {
-		StringBuilder dirList = new StringBuilder();
-		File d = new File(path);
-		File[] list = d.listFiles();
-
-		for (int i = 0; i < list. length; i++) {
-			dirList.append("\n" + list[ i ].getName());
-		}
-
-		return dirList.toString();
+		return new File(path).listFiles().toString();
 	}
+
+  @JavascriptInterface
+  public static String readSymlink (String path) {
+    try {
+      return Files.readSymbolicLink(Paths.get(path)).toString();
+    } catch (IOException ioe) {
+      return "";
+    }
+	}
+
+  @JavascriptInterface
+  public static String sizeOnDisk (String path) {
+    try {
+      return new String("" + Files.size(Paths.get(path)));
+    } catch (IOException ioe) {
+      return "";
+    }
+	}
+
+  @JavascriptInterface
+  public static void createSymlink (String source, String target) {
+    try {
+      Files.createSymbolicLink(Paths.get(source), Paths.get(target));
+    } catch (IOException ioe) {
+    }
+	}
+
+  @JavascriptInterface
+  public static void move (String source, String target) {
+    try {
+      Files.move(Paths.get(source), Paths.get(target));
+    } catch (IOException ioe) {
+    }
+  }
 
 	@JavascriptInterface
 	public static void writeFile (String path, String data) {
