@@ -21,6 +21,7 @@ public class WebAppInterface {
 	protected static Context mContext;
 	protected static AssetManager assetManager;
   protected static boolean storagePermission = false;
+  protected static boolean symlinkPermission = false;
 
 	WebAppInterface (Context c) {
 		mContext = c;
@@ -64,20 +65,20 @@ public class WebAppInterface {
   public static String buildStats(StructStat stats) {
     StringBuilder sb = new StringBuilder();
     sb.append("{");
-    sb.append("dev:" + stats.st_dev);
-    sb.append(",ino:" + stats.st_ino);
-    sb.append(",mode:" + stats.st_mode);
-    sb.append(",nlink:" + stats.st_nlink);
-    sb.append(",uid:" + stats.st_uid);
-    sb.append(",gid:" + stats.st_gid);
-    sb.append(",rdev:" + stats.st_rdev);
-    sb.append(",size:" + stats.st_size);
-    sb.append(",blksize:" + stats.st_blksize);
-    sb.append(",blocks:" + stats.st_blocks);
-    sb.append(",atimeMs:" + stats.st_atime);
-    sb.append(",mtimeMs:" + stats.st_mtime);
-    sb.append(",ctimeMs:" + stats.st_ctime);
-    sb.append(",birthtime:" + stats.st_mtime);
+    sb.append("\"dev\":" + stats.st_dev);
+    sb.append(",\"ino\":" + stats.st_ino);
+    sb.append(",\"mode\":" + stats.st_mode);
+    sb.append(",\"nlink\":" + stats.st_nlink);
+    sb.append(",\"uid\":" + stats.st_uid);
+    sb.append(",\"gid\":" + stats.st_gid);
+    sb.append(",\"rdev\":" + stats.st_rdev);
+    sb.append(",\"size\":" + stats.st_size);
+    sb.append(",\"blksize\":" + stats.st_blksize);
+    sb.append(",\"blocks\":" + stats.st_blocks);
+    sb.append(",\"atimeMs\":" + stats.st_atime);
+    sb.append(",\"mtimeMs\":" + stats.st_mtime);
+    sb.append(",\"ctimeMs\":" + stats.st_ctime);
+    sb.append(",\"birthtime\":" + stats.st_mtime);
     sb.append("}");
 
     return sb.toString();
@@ -88,7 +89,9 @@ public class WebAppInterface {
     try {
       return buildStats(android.system.Os.lstat(path));
     } catch (ErrnoException ee) {
-      return "{}";
+      return "{\"errno\":" + ee.errno + ",\"errnoName\":\""
+        + android.system.OsConstants.errnoName(ee.errno)
+        + "\"}";
     }
   }
 
@@ -97,7 +100,9 @@ public class WebAppInterface {
     try {
       return buildStats(android.system.Os.stat(path));
     } catch (ErrnoException ee) {
-      return "{}";
+      return "{\"errno\":" + ee.errno + ",\"errnoName\":\""
+        + android.system.OsConstants.errnoName(ee.errno)
+        + "\"}";
     }
   }
 
@@ -136,27 +141,35 @@ public class WebAppInterface {
 
 	@JavascriptInterface
 	public static void rmdir (String path) {
-    File dir = new File(path); 
+    File dir = new File(path);
+
     if (dir.isDirectory()) {
       String[] children = dir.list();
+
       for (int i = 0; i < children.length; i++) {
         new File(dir, children[i]).delete();
       }
+      
+      dir.delete();
     }
 	}
 
 	@JavascriptInterface
 	public static String readDir (String path) {
-		return new File(path).listFiles().toString();
+		return String.join(",", new File(path).list());
 	}
 
   @JavascriptInterface
-  public static String readSymlink (String path) {
+  public static String readlink (String path) {
     try {
-      return Files.readSymbolicLink(Paths.get(path)).toString();
-    } catch (IOException ioe) {
-      return "";
+      android.system.Os.readlink(path);
+    } catch (ErrnoException ee) {
+      return "{\"errno\":" + ee.errno + ",\"errnoName\":\""
+        + android.system.OsConstants.errnoName(ee.errno)
+      + "\"}";
     }
+
+    return "true";
 	}
 
   @JavascriptInterface
@@ -164,16 +177,21 @@ public class WebAppInterface {
     try {
       return new String("" + Files.size(Paths.get(path)));
     } catch (IOException ioe) {
-      return "";
+      return "{\"error\":" + ioe.getMessage() + "\"}";
     }
 	}
 
   @JavascriptInterface
-  public static void createSymlink (String source, String target) {
+  public static String createSymlink (String source, String target) {
     try {
-      Files.createSymbolicLink(Paths.get(source), Paths.get(target));
-    } catch (IOException ioe) {
+      android.system.Os.symlink(source, target);
+    } catch (ErrnoException ee) {
+      return "{\"errno\":" + ee.errno + ",\"errnoName\":\""
+        + android.system.OsConstants.errnoName(ee.errno)
+        + "\"}";
     }
+    
+    return "true";
 	}
 
   @JavascriptInterface
