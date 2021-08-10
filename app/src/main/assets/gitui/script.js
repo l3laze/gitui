@@ -249,6 +249,10 @@ const fs = {
       if (Android.havePermission()) {
         const stats = (await Android.stat(path))
 
+        if (stats.indexOf('{\"error') === 0) {
+          throw new Error(JSON.parse(stats).error)
+        }
+
         return JSON.parse(stats)
       }
     },
@@ -256,12 +260,22 @@ const fs = {
       if (Android.havePermission()) {
         const stats = (await Android.lstat(path))
 
-        return JSON.parse(stats)
+        if (stats.indexOf('{\"error') === 0) {
+          throw new Error(JSON.parse(stats).error)
+        }
+
+        return stats
       }
     },
     readdir: async function readdir (path) {
       if (Android.havePermission()) {
-        return (await Android.readDir(path))
+        const result = (await Android.readDir(path))
+
+        if (result.indexOf('{\"error') === 0) {
+          throw new Error(JSON.parse(result))
+        }
+
+        return result
       }
     },
     'delete': async function deletePath (path) {
@@ -321,7 +335,8 @@ async function selfTest () {
       lines.push((r.result || r.fails
         ? check : cross) + ' ' + r.name +
         (typeof r.error !== 'undefined'
-          ? '\n  Thrown - ' + r.error : ''))
+          ? '\n  Thrown - ' + r.error
+          : ''))
     }
 
     return lines.join('\n')
@@ -495,6 +510,15 @@ async function runTests () {
     return result
   })
 
+  await test('Rename', async function () {
+    await fs.promises.mkdir(Android.homeFolder() + '/.gitui-test-dir')
+    await fs.promises.rename(Android.homeFolder() + '/.gitui-test-dir', Android.homeFolder() + '/.gitui-test-folder')
+    const result = await fs.promises.exists(Android.homeFolder() + '/.gitui-test-folder')
+    await fs.promises.rmdir(Android.homeFolder() + '/.gitui-test-folder')
+
+    return result
+  })
+
   await test('Make directory', async function () {
     await fs.promises.mkdir(Android.homeFolder() + '/.gitui-test-dir')
 
@@ -516,15 +540,6 @@ async function runTests () {
     return result
   })
 
-  await test('Rename', async function () {
-    await fs.promises.mkdir(Android.homeFolder() + '/.gitui-test-dir')
-    await fs.promises.rename(Android.homeFolder() + '/.gitui-test-dir', Android.homeFolder() + '/.gitui-test-folder')
-    const result = await fs.promises.exists(Android.homeFolder() + '/.gitui-test-folder')
-    await fs.promises.rmdir(Android.homeFolder() + '/.gitui-test-folder')
-
-    return result
-  })
-
   await test('Read directory', async function () {
     await fs.promises.mkdir(Android.homeFolder() + '/.gitui-test-dir')
     await fs.promises.writeFile(Android.homeFolder() + '/.gitui-test-dir/.gitui-test-file1.txt', '')
@@ -532,7 +547,13 @@ async function runTests () {
     const result = (await fs.promises.readdir(Android.homeFolder() + '/.gitui-test-dir'))
     await fs.promises.rmdir(Android.homeFolder() + '/.gitui-test-dir')
 
-    return (JSON.stringify(result.split(',')) === JSON.stringify(['.gitui-test-file1.txt', '.gitui-test-file2.txt']))
+    if (result.error) {
+      throw new Error(result.error)
+    }
+
+    const split = result.split(',')
+    
+    return (split.includes('.gitui-test-file1.txt') && split.includes('.gitui-test-file2.txt'))
   })
 
   await test('Can stat', async function () {
@@ -557,10 +578,8 @@ async function runTests () {
 
     const result = await fs.promises.symlink(Android.homeFolder() + '/.gitui-test-file.txt', Android.homeFolder() + '/.gitui-test-file-link')
 
-    if (result.errno) {
-      setStatus('Error from symlink: ' + result.errnoName + '('+ result.errno + ')')
-
-      throw new Error(result.errnoName + '(' + result.errno + ')')
+    if (result.error) {
+      throw new Error(result.error)
     }
 
     await fs.promises.delete(Android.homeFolder() + '/.gitui-test-file.txt')
@@ -573,21 +592,14 @@ async function runTests () {
 
     const resultLink = await fs.promises.symlink(Android.homeFolder() + '/.gitui-test-file.txt', Android.homeFolder() + '/.gitui-test-file-link')
 
-    if (resultLink.errno) {
-      setStatus('Error from symlink in lstst: ' + resultLink.errnoName + '('+ resultLink.errno + ')')
-    }
-    
     const resultFile = await fs.promises.lstat(Android.homeFolder() + '/.gitui-test-file.txt')
     const resultLinkStat = await fs.promises.lstat(Android.homeFolder() + '/.gitui-test-file-link')
 
-    if (resultLinkStat.errno) {
-      setStatus('Error from lstat link: ' + resultLinkStat.errnoName + '('+ resultLinkStat.errno + ')')
+    if (resultLinkStat.error) {
+      throw new Error(resultLinkStat.error + '(' + resultLinkStat.error + ')')
+    } else if(resultFile.error) {
 
-      throw new Error(resultLinkStat.errnoName + '(' + resultLinkStat.errno + ')')
-    } else if(resultFile.errno) {
-      setStatus('Error from lstat file: ' + resultFile.errnoName + '('+ resultFile.errno + ')')
-
-      throw new Error(resultFile.errnoName + '(' + resultFile.errno + ')')
+      throw new Error(resultFile.error)
     }
 
     await fs.promises.delete(Android.homeFolder() + '/.gitui-test-file.txt')
@@ -601,9 +613,8 @@ async function runTests () {
     const result = await fs.promises.readlink(Android.homeFolder() + '/.gitui-test-file-link')
     await fs.promises.delete(Android.homeFolder() + '/.gitui-test-file.txt')
 
-    if (result.errno) {
-      setStatus('Error from readlink: ' + result.errnoName + '('+ result.errno + ')')
-      throw new Error(result.errnoName + '(' + result.errno + ')')
+    if (result.error) {
+      throw new Error(result.error)
     }
 
     return true

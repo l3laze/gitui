@@ -62,7 +62,18 @@ public class WebAppInterface {
 		return Paths.get(path).resolve(other).toString();
 	}
 
-  public static String buildStats(StructStat stats) {
+  public static String getExplanation (String errnoName, String context) {
+    switch (errnoName) {
+      case "ENOENT":
+        return "A component of pathname does not exist or is a dangling symbolic link.";
+      case "EACCES":
+        return "Write access to the directory containing linkpath is denied, or one of the directories in the path prefix of linkpath did not allow search permission.";
+      default:
+        return "No explanation available.";
+    }
+  }
+
+  public static String buildStats (StructStat stats) {
     StringBuilder sb = new StringBuilder();
     sb.append("{");
     sb.append("\"dev\":" + stats.st_dev);
@@ -89,9 +100,8 @@ public class WebAppInterface {
     try {
       return buildStats(android.system.Os.lstat(path));
     } catch (ErrnoException ee) {
-      return "{\"errno\":" + ee.errno + ",\"errnoName\":\""
-        + android.system.OsConstants.errnoName(ee.errno)
-        + "\"}";
+      String name = android.system.OsConstants.errnoName(ee.errno);
+      return "{\"error\":\"" + name + " (" + ee.errno + "): " + getExplanation(name, "lstat") + "\"}";
     }
   }
 
@@ -100,9 +110,8 @@ public class WebAppInterface {
     try {
       return buildStats(android.system.Os.stat(path));
     } catch (ErrnoException ee) {
-      return "{\"errno\":" + ee.errno + ",\"errnoName\":\""
-        + android.system.OsConstants.errnoName(ee.errno)
-        + "\"}";
+      String name = android.system.OsConstants.errnoName(ee.errno);
+      return "{\"error\":\"" + name + " (" + ee.errno + "): " + getExplanation(name, "stat") + "\"}";
     }
   }
 
@@ -156,7 +165,11 @@ public class WebAppInterface {
 
 	@JavascriptInterface
 	public static String readDir (String path) {
-		return String.join(",", new File(path).list());
+    try {
+	  	return String.join(",", new File(path).list());
+    } catch (SecurityException se) {
+      return "{\"error\":" + se.getMessage() + "\"}";
+    }
 	}
 
   @JavascriptInterface
@@ -164,9 +177,8 @@ public class WebAppInterface {
     try {
       android.system.Os.readlink(path);
     } catch (ErrnoException ee) {
-      return "{\"errno\":" + ee.errno + ",\"errnoName\":\""
-        + android.system.OsConstants.errnoName(ee.errno)
-      + "\"}";
+      String name = android.system.OsConstants.errnoName(ee.errno);
+      return "{\"error\":\"" + name + " (" + ee.errno + "): " + getExplanation(name, "readlink") + "\"}";
     }
 
     return "true";
@@ -186,9 +198,10 @@ public class WebAppInterface {
     try {
       android.system.Os.symlink(source, target);
     } catch (ErrnoException ee) {
-      return "{\"errno\":" + ee.errno + ",\"errnoName\":\""
-        + android.system.OsConstants.errnoName(ee.errno)
-        + "\"}";
+      return "{\"error\":\"" + android.system.OsConstants.errnoName(ee.errno)
+        + " (" + ee.errno + "): Write access to the directory containing linkpath is "
+        + "denied, or one of the directories in the path prefix of "
+        + "linkpath did not allow search permission.\"}";
     }
     
     return "true";
