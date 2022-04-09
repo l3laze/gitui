@@ -212,6 +212,24 @@ window.onclick = function clickWin (event) {
   }
 }
 
+function toggleStatus () {
+  const sb = document.getElementById('statusBar')
+  const ta = document.getElementById('status')
+  const xs = document.getElementById('xstatus')
+
+  sb.style.height = (sb.style.height !== "94%"
+  ? "94%" : "")
+
+  if (sb.style.height === "") {
+    ta.style.height = "6.1em"
+    xs.innerText = "Expand"
+  }
+  else {
+    ta.style.height = "96%"
+    xs.innerText = "Collapse"
+  }
+}
+
 /*
  * Filesystem
  */
@@ -316,6 +334,7 @@ const fs = {
 
 async function selfTest () {
   let passed = 0
+  let optional = 0
   let total = 0
 
   const tests = await runTests()
@@ -328,11 +347,13 @@ async function selfTest () {
     for (let r of tests) {
       if (r.skip) continue
 
-      if (r.result || r.fails) passed++
+      if (r.result || r.flags.fails) passed++
+
+      if (r.result === false && r.flags.optional) optional++
 
       total++
 
-      lines.push((r.result || r.fails
+      lines.push((r.result || (r.flags.fails || r.result === true)
         ? check : cross) + ' ' + r.name +
         (typeof r.error !== 'undefined'
           ? '\n  Thrown - ' + r.error
@@ -342,17 +363,20 @@ async function selfTest () {
     return lines.join('\n')
   }()) +
   '\n\n' +
+  (optional > 0
+    ? optional + ' optional tests failed.\n'
+    : '') +
   ((passed / total * 100) + '').substring(0,5) +
   '% passed (' + passed + '/' + total + ').'
 
-  // document.getElementById('status').value = ''
+  document.getElementById('status').value = ''
 
   setStatus(message)
 }
 
 async function runTests () {
   const tests = []
-  const _test = async function _test (name, testFunc, fails = false) {
+  const _test = async function _test (name, testFunc, flags) {
     let result = false
     let error
 
@@ -364,23 +388,23 @@ async function runTests () {
       }
     } catch (e) {
       error = e
-      result = fails
+      result = flags.fails || false
     }
 
     tests.push({
       name,
       result,
       error,
-      fails
+      flags
     })
   }
 
   const test = async function test (name, func) {
-    await _test(name, func, false)
+    await _test(name, func, { fails: false })
   }
 
   test.fails = async function fails (name, func) {
-    await _test(name,func, true)
+    await _test(name, func, { fails: true })
   }
 
   test.skip = function skip (name, func) {
@@ -388,6 +412,10 @@ async function runTests () {
       name,
       skip: true
     })
+  }
+
+  test.optional = async function optional (name, func) {
+    await _test(name, func, { optional: true })
   }
 
   /*
@@ -573,21 +601,21 @@ async function runTests () {
     return true
   })
 
-  await test('Can symlink', async function () {
+  await test.optional('Can symlink', async function () {
     await fs.promises.writeFile(Android.homeFolder() + '/.gitui-test-file.txt', 'Hello, world!')
 
     const result = await fs.promises.symlink(Android.homeFolder() + '/.gitui-test-file.txt', Android.homeFolder() + '/.gitui-test-file-link')
+
+    await fs.promises.delete(Android.homeFolder() + '/.gitui-test-file.txt')
 
     if (result.error) {
       throw new Error(result.error)
     }
 
-    await fs.promises.delete(Android.homeFolder() + '/.gitui-test-file.txt')
-
     return result
   })
 
-  await test('Can lstat', async function () {
+  await test.optional('Can lstat', async function () {
     await fs.promises.writeFile(Android.homeFolder() + '/.gitui-test-file.txt', 'Hello, world!')
 
     const resultLink = await fs.promises.symlink(Android.homeFolder() + '/.gitui-test-file.txt', Android.homeFolder() + '/.gitui-test-file-link')
@@ -595,19 +623,18 @@ async function runTests () {
     const resultFile = await fs.promises.lstat(Android.homeFolder() + '/.gitui-test-file.txt')
     const resultLinkStat = await fs.promises.lstat(Android.homeFolder() + '/.gitui-test-file-link')
 
+    await fs.promises.delete(Android.homeFolder() + '/.gitui-test-file.txt')
+
     if (resultLinkStat.error) {
       throw new Error(resultLinkStat.error + '(' + resultLinkStat.error + ')')
     } else if(resultFile.error) {
-
       throw new Error(resultFile.error)
     }
-
-    await fs.promises.delete(Android.homeFolder() + '/.gitui-test-file.txt')
 
     return true
   })
 
-  await test('Can readlink', async function () {
+  await test.optional('Can readlink', async function () {
     await fs.promises.writeFile(Android.homeFolder() + '/.gitui-test-file.txt', 'Hello, world!')
     const resultLink = await fs.promises.symlink(Android.homeFolder() + '/.gitui-test-file.txt', './.gitui-test-file-link')
     const result = await fs.promises.readlink(Android.homeFolder() + '/.gitui-test-file-link')

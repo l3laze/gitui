@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <title>gitui</title>
+  <title>jgitui</title>
 
   <meta name="viewport" content="user-scalable=no, initial-scale=1, maximum-scale=1, minimum-scale=1, width=device-width">
   <meta name="theme-color" content="#039be5">
@@ -190,7 +190,9 @@
   </div>
 </div>
 
-<div class="w3-whole w3-bottom w3-black">
+<div id="statusBar" class="w3-whole w3-bottom w3-black">
+  <span onclick="toggleStatus()" id="xstatus"
+    class="w3-small w3-display-topright">Expand</span>
   <textarea class="w3-black" id="status" placeholder="Status" readOnly="true" onfocus="this.blur()"></textarea>
 </div>
 
