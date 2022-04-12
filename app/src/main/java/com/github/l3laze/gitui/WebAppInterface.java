@@ -62,6 +62,16 @@ public class WebAppInterface {
 		return Paths.get(path).resolve(other).toString();
 	}
 
+	@JavascriptInterface
+	public static String getAbsolutePath (String path) {
+		return new File(path).getAbsolutePath();
+	}
+
+	@JavascriptInterface
+	public static String dirname (String path) {
+		return new File(path).getParentFile().getAbsolutePath();
+	}
+
   public static String getExplanation (String errnoName, String context) {
     switch (errnoName) {
       case "ENOENT":
@@ -140,57 +150,62 @@ public class WebAppInterface {
 		new File(path).mkdir();
 	}
 
-  @JavascriptInterface
-	public static void delete (String path) {
-    try {
-      Files.delete(Paths.get(path));
-    } catch (IOException ioe) {
+    @JavascriptInterface
+	public static void makeDirectoryTree (String path) {
+	    new File(path).mkdirs();
+	}
+
+    @JavascriptInterface
+    public static void delete (String path) {
+      try {
+        Files.delete(Paths.get(path));
+      } catch (IOException ioe) {
+      }
     }
-  }
 
 	@JavascriptInterface
 	public static void rmdir (String path) {
-    File dir = new File(path);
+      File dir = new File(path);
 
-    if (dir.isDirectory()) {
-      String[] children = dir.list();
+      if (dir.isDirectory()) {
+        String[] children = dir.list();
 
-      for (int i = 0; i < children.length; i++) {
-        new File(dir, children[i]).delete();
+        for (int i = 0; i < children.length; i++) {
+          new File(dir, children[i]).delete();
+        }
+        
+        dir.delete();
       }
-      
-      dir.delete();
-    }
 	}
 
 	@JavascriptInterface
 	public static String readDir (String path) {
-    try {
-	  	return String.join(",", new File(path).list());
-    } catch (SecurityException se) {
-      return "{\"error\":" + se.getMessage() + "\"}";
-    }
+      try {
+          return String.join(",", new File(path).list());
+      } catch (SecurityException se) {
+        return "{\"error\":" + se.getMessage() + "\"}";
+      }
 	}
 
-  @JavascriptInterface
-  public static String readlink (String path) {
-    try {
-      android.system.Os.readlink(path);
-    } catch (ErrnoException ee) {
-      String name = android.system.OsConstants.errnoName(ee.errno);
-      return "{\"error\":\"" + name + " (" + ee.errno + "): " + getExplanation(name, "readlink") + "\"}";
-    }
+    @JavascriptInterface
+    public static String readlink (String path) {
+      try {
+        android.system.Os.readlink(path);
+      } catch (ErrnoException ee) {
+        String name = android.system.OsConstants.errnoName(ee.errno);
+        return "{\"error\":\"" + name + " (" + ee.errno + "): " + getExplanation(name, "readlink") + "\"}";
+      }
 
-    return "true";
+      return "true";
 	}
 
-  @JavascriptInterface
-  public static String sizeOnDisk (String path) {
-    try {
-      return new String("" + Files.size(Paths.get(path)));
-    } catch (IOException ioe) {
-      return "{\"error\":" + ioe.getMessage() + "\"}";
-    }
+    @JavascriptInterface
+    public static String sizeOnDisk (String path) {
+      try {
+        return new String("" + Files.size(Paths.get(path)));
+      } catch (IOException ioe) {
+        return "{\"error\":" + ioe.getMessage() + "\"}";
+      }
 	}
 
   @JavascriptInterface

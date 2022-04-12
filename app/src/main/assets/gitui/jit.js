@@ -21,6 +21,35 @@ function setStatus (text) {
   stat.scrollTop = stat.scrollHeight
 }
 
+window.onload = function startUp () {
+  setStatus(window.location)
+  // setStatus('Storage permission? ' + Android.havePermission())
+
+  if (window.location.search === '?test') {
+    setStatus('Running tests...')
+
+    selfTest()
+  }
+}
+
+function toggleStatus () {
+  const sb = document.getElementById('statusBar')
+  const ta = document.getElementById('status')
+  const xs = document.getElementById('xstatus')
+
+  sb.style.height = (sb.style.height !== "94%"
+  ? "94%" : "")
+
+  if (sb.style.height === "") {
+    ta.style.height = "6.1em"
+    xs.innerText = "Expand"
+  }
+  else {
+    ta.style.height = "96%"
+    xs.innerText = "Collapse"
+  }
+}
+
 const Android = {}
 
 const fs = {
@@ -45,9 +74,15 @@ const fs = {
       }
     },
 
-    mkdir: async function mkdir (path, data) {
+    mkdir: async function mkdir (path) {
       if (Android.havePermission()) {
         await Android.makeDirectory(path)
+      }
+    },
+
+    mkdirp: async function mkdirp (path) {
+      if (Android.havePermission()) {
+        await Android.makeDirectoryTree(path)
       }
     },
 
@@ -132,16 +167,24 @@ const fs = {
 const path = {
   // TODO
 
-  dirName: function (p) {
-    return p.substring(0, p.lastIndexOf(/\//))
+  normalize: function (p) {
+    return Android.normalize(p)
   },
 
-  absolute: function (p) {
-    return p
+  relativize: function (p) {
+    return Android.relativize(p)
+  },
+
+  dirname: function (p) {
+    return Android.dirname(p)
+  },
+
+  getAbsolutePath: function (p) {
+    return Android.getAbsolutePath(p)
   },
 
   join: function (p, d) {
-    return p + '/' + d
+    return Android.resolve(a, b)
   }
 }
 
@@ -175,7 +218,7 @@ async function jit (args) {
 
       for (const dir of ['objects', 'refs']) {
         try {
-          fs.mkdirp(path.join(gitPath, dir))
+          fs.promises.mkdirp(path.join(gitPath, dir))
         } catch (error) {
           process.stderr(error)
         }
@@ -229,6 +272,7 @@ const Workspace = function Workspace (p) {
   const pathname = p
 
   return {
+    pathname,
     listFiles: async function listFiles () {
       const list = (await fs.promises.readdir(pathname))
 
@@ -382,4 +426,120 @@ const Author = function Author (n, e, t) {
   return `${name} <${email}> ${time}`
 }
 
-jit(process.argv)
+// jit(process.argv)
+
+/*
+ * Testing
+ */
+
+async function selfTest () {
+  let passed = 0
+  let optional = 0
+  let total = 0
+
+  const tests = await runTests()
+
+  const message = (function () {
+    const check = '\u2714'
+    const cross = '\u274C'
+    const lines = []
+
+    for (let r of tests) {
+      if (r.skip) continue
+
+      if (r.result || r.flags.fails) passed++
+
+      if (r.result === false && r.flags.optional) optional++
+
+      total++
+
+      lines.push((r.result || (r.flags.fails || r.result === true)
+        ? check : cross) + ' ' + r.name +
+        (typeof r.error !== 'undefined'
+          ? '\n  Thrown - ' + r.error
+          : ''))
+    }
+
+    return lines.join('\n')
+  }()) +
+  '\n\n' +
+  (optional > 0
+    ? optional + ' optional tests failed.\n'
+    : '') +
+  ((passed / total * 100) + '').substring(0,5) +
+  '% passed (' + passed + '/' + total + ').'
+
+  document.getElementById('status').value = ''
+
+  setStatus(message)
+}
+
+async function runTests () {
+  const tests = []
+  const _test = async function _test (name, testFunc, flags) {
+    let result = false
+    let error
+
+    try {
+      if (testFunc.constructor.name === 'AsyncFunction') {
+        result = (await testFunc())
+      } else {
+        result = testFunc()
+      }
+    } catch (e) {
+      error = e
+      result = flags.fails || false
+    }
+
+    tests.push({
+      name,
+      result,
+      error,
+      flags
+    })
+  }
+
+  const test = async function test (name, func) {
+    await _test(name, func, { fails: false })
+  }
+
+  test.fails = async function fails (name, func) {
+    await _test(name, func, { fails: true })
+  }
+
+  test.skip = function skip (name, func) {
+    tests.push({
+      name,
+      skip: true
+    })
+  }
+
+  test.optional = async function optional (name, func) {
+    await _test(name, func, { optional: true })
+  }
+
+  /*
+   * General error handling tests
+   */
+
+  test.fails('Expected failure from false', function failsFalse () {
+    setStatus('Expecting failure 1')
+
+    return false
+  })
+
+  test.fails('Expected failure from throw', function failsThrow () {
+    setStatus('Expecting failure 2')
+
+    throw new Error('Oops')
+  })
+
+  test ('Author returns formatted string', function authorFunc () {
+    const now = new Date()
+    const author = Author('Tom', 't@b.c', now)
+
+    return author === `Tom <t@b.c> ${now}`
+  })
+
+  return tests
+}
