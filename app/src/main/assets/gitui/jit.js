@@ -10,6 +10,21 @@ function capture (msg, source, line, column, err) {
 
 window.onerror = capture
 
+/*
+ * UI event handlers
+ */
+
+pullToRefresh({
+  container: document.querySelector('.container'),
+  animates: ptrAnimatesMaterial,
+
+  refresh () {
+    setTimeout(function () {
+      window.location.search = ''
+    }, 750)
+  }
+})
+
 function setStatus (text) {
   const stat = document.getElementById('status')
 
@@ -32,25 +47,200 @@ window.onload = function startUp () {
   }
 }
 
+function initCustomization () {
+  if (Android.havePermission()) {
+    const externalHome = Android.copyAssets('gitui')
+    setStatus(externalHome)
+    setTimeout(function () {
+      window.location = externalHome + '/index.html'
+    }, 1000)
+  } else {
+    const message = 'Requires storage access'
+
+    if (Android) {
+      Android.showToast(message)
+    }
+
+    setStatus(message)
+  }
+}
+
+function copyText (text) {
+  if (typeof Android !== 'undefined') {
+    Android.copyToClipboard(text)
+
+    if (parseInt(Android.androidVersion()) > 27) {
+      Android.showToast('Copied to Clip Tray')
+    }
+  } else {
+    navigator.clipboard.writeText(text)
+      .then(function () {}, function () {})
+  }
+
+  event.stopPropagation()
+}
+
+function toggleDisplay (eid, displayAs) {
+  const el = document.getElementById(eid)
+
+  if (el.style.display === 'none') {
+    el.style.display = displayAs
+
+    if (el.tagName === 'INPUT') {
+      el.focus()
+    }
+  } else {
+    el.style.display = 'none'
+  }
+}
+
+function toggleFooter () {
+  const statusArea = document.getElementById('status')
+
+  if (statusArea.style.display === 'none') {
+    statusArea.style.display = 'inline-block'
+    statusArea.scrollTop = statusArea.scrollHeight
+  } else {
+    statusArea.style.display = 'none'
+  }
+}
+
+function searchRepos (text) {
+  const repos = document.getElementsByClassName('repo-card')
+
+  text = text.toLowerCase()
+
+  for (const r of repos) {
+    const repoName = r.querySelector('.repo-name').innerText
+
+    if (text !== '' && repoName.indexOf(text) < 0) {
+      r.style.display = 'none'
+    } else {
+      r.style.display = 'block'
+    }
+  }
+}
+
+function createRepo (way) {
+  setStatus('Creating repo via ' + way + '...')
+}
+
+function openRepo (which) {
+  setStatus('Opening ' + which)
+  event.stopPropagation()
+}
+
+function pullRepo (which) {
+  const behind = event.target.querySelector('.commitsBehind') || event.target.parentElement.querySelector('.commitsBehind')
+
+  behind.innerText = '0'
+
+  setStatus('Pulled ' + which)
+  event.stopPropagation()
+}
+
+function pushRepo (which) {
+  const ahead = event.target.querySelector('.commitsAhead') || event.target.parentElement.querySelector('.commitsAhead')
+
+  ahead.innerText = '0'
+
+  setStatus('Pushed ' + which)
+  event.stopPropagation()
+}
+
+function openModal (title) {
+  const modal = document.getElementById('modal')
+  const modes = [
+    'settings',
+    'add'
+  ]
+
+  for (const m of modes) {
+    if (title.toLowerCase().indexOf(m) === -1) {
+      document.getElementById(m + 'Modal').style.display = 'none'
+    } else {
+      document.getElementById(m + 'Modal').style.display = 'block'
+      modal['data-mode'] = m
+    }
+  }
+
+  modal.style.display = 'block'
+  document.getElementById('modal_title').innerText = title
+
+  setStatus('Opened modal for ' + title)
+}
+
+function cancelModal () {
+  document.getElementById('modal').style.display = 'none'
+
+  setStatus('Cancelled modal')
+}
+
+function okModal () {
+  const modal = document.getElementById('modal')
+  modal.style.display = 'none'
+
+  if (modal['data-mode'] === 'settings') {
+    // saveSettings()
+  } else {
+    createRepo(modal.querySelector('.add-btn.w3-black').innerText)
+  }
+}
+
+function openTab (which, whatClass, btnClass) {
+  const controls = {
+    clone: ['repoSource', 'repoPath', 'cloneRecursively'],
+    init: ['repoPath'],
+    import: ['repoPath'],
+    app: ['settingsApp'],
+    git: ['settingsGit']
+  }
+
+  const els = document.getElementsByClassName(whatClass)
+  const btns = document.getElementsByClassName(btnClass)
+
+  for (const e of els) {
+    e.style.display = 'none'
+  }
+
+  for (const b of btns) {
+    b.classList.remove('w3-black')
+  }
+
+  for (const c of controls[which.toLowerCase()]) {
+    document.getElementById(c).style.display = 'inline'
+  }
+
+  event.target.classList.add('w3-black')
+}
+
+window.onclick = function clickWin (event) {
+  if (event.target.className.indexOf('w3-modal') > -1) {
+    cancelModal()
+  }
+}
+
 function toggleStatus () {
   const sb = document.getElementById('statusBar')
   const ta = document.getElementById('status')
   const xs = document.getElementById('xstatus')
 
-  sb.style.height = (sb.style.height !== "94%"
-  ? "94%" : "")
+  sb.style.height = (sb.style.height !== '94%'
+    ? '94%'
+    : '')
 
-  if (sb.style.height === "") {
-    ta.style.height = "6.1em"
-    xs.innerText = "Expand"
-  }
-  else {
-    ta.style.height = "96%"
-    xs.innerText = "Collapse"
+  if (sb.style.height === '') {
+    ta.style.height = '6.1em'
+    xs.innerText = 'Expand'
+  } else {
+    ta.style.height = '96%'
+    xs.innerText = 'Collapse'
   }
 }
 
-const Android = {}
+/*
+ * Native functionality
+ */
 
 const fs = {
   promises: {
@@ -82,7 +272,7 @@ const fs = {
 
     mkdirp: async function mkdirp (path) {
       if (Android.havePermission()) {
-        await Android.makeDirectoryTree(path)
+        await Android.makeDirectorytree(path)
       }
     },
 
@@ -144,6 +334,10 @@ const fs = {
       if (Android.havePermission()) {
         const result = (await Android.readlink(path))
 
+        if (result.indexOf('"error') === 0) {
+          throw new Error(JSON.parse(result))
+        }
+
         return JSON.parse(result)
       }
     },
@@ -165,8 +359,6 @@ const fs = {
 }
 
 const path = {
-  // TODO
-
   normalize: function (p) {
     return Android.normalize(p)
   },
@@ -183,15 +375,14 @@ const path = {
     return Android.getAbsolutePath(p)
   },
 
-  join: function (p, d) {
-    return Android.resolve(a, b)
+  join: function (a, b) {
+    // return Android.resolve(a, b)
+    return a + '/' + b
   }
 }
 
 const process = {
-  // TODO
-
-  pwd: '.',
+  pwd: Android.cwd(),
 
   stderr: function (message) {
     setStatus(message)
@@ -202,23 +393,27 @@ const process = {
   }
 }
 
+/*
+ * Git functionality
+ */
+
 async function jit (args) {
   const command = args.shift()
 
   let argPath, rootPath, gitPath, dbPath,
-    workspace, database,
-    entries, data, blob, tree, commit,
-    name, email, author, message
+    workspaceObj, databaseObj,
+    entries, data, blobObj, treeObj, commitObj,
+    name, email, authorObj, message, dir
 
   switch (command) {
     case 'init':
-      argPath = path.dirName(args[0])
+      argPath = path.dirname(args[0] || process.pwd())
       rootPath = path.absolute(argPath)
       gitPath = path.join(rootPath, '.git')
 
       for (const dir of ['objects', 'refs']) {
         try {
-          fs.promises.mkdirp(path.join(gitPath, dir))
+          await fs.promises.mkdirp(path.join(gitPath, dir))
         } catch (error) {
           process.stderr(error)
         }
@@ -228,38 +423,38 @@ async function jit (args) {
       break
 
     case 'commit':
-      rootPath = process.pwd
+      rootPath = process.pwd()
       gitPath = path.join(rootPath, '.git')
       dbPath = path.join(gitPath, 'objects')
 
-      workspace = Workspace(rootPath)
-      database = Database(dbPath)
+      workspaceObj = workspace(rootPath)
+      databaseObj = database(dbPath)
 
-      entries = workspace.listFiles()
-        .map(dir => {
-          data = workspace.read_file(dir)
-          blob = Blob(data)
-          database.store(blob)
+      entries = await workspaceObj.listFiles()
 
-          const entry = Entry(dir, blob.oid)
+      for (let i = 0; i < entries.length; i++) {
+        dir = entries[i]
+        data = await workspaceObj.read_file(dir)
+        blobObj = blob(data)
+        await databaseObj.store(blobObj)
 
-          return entry
-        })
+        entries[i] = entry(dir, blobObj.oid)
+      }
 
-      tree = Tree(entries)
-      database.store(tree)
+      treeObj = tree(entries)
+      await databaseObj.store(treeObj)
 
-      name = process.ENV.GIT_AUTHOR_NAME
-      email = process.ENV.GIT_AUTHOR_EMAIL
-      author = Author(name, email, new Date())
+      name = process.ENV.GIT_author_NAME
+      email = process.ENV.GIT_author_EMAIL
+      authorObj = author(name, email, new Date())
       message = args[1]
-      commit = Commit(tree.oid, author, message)
+      commitObj = commit(treeObj.oid, authorObj, message)
 
-      database.store(commit)
+      await databaseObj.store(commitObj)
 
-      await fs.promises.writeAsync(path.join(gitPath, 'HEAD'), commit.oid)
+      await fs.promises.writeAsync(path.join(gitPath, 'HEAD'), commitObj.oid)
 
-      process.stdout(`[(root-commit) ${commit.oid}] ${message.split('\n').slice(0, 1)}`)
+      process.stdout(`[(root-commit) ${commitObj.oid}] ${message.split('\n').slice(0, 1)}`)
       break
 
     default:
@@ -267,7 +462,7 @@ async function jit (args) {
   }
 }
 
-const Workspace = function Workspace (p) {
+const workspace = function workspace (p) {
   const IGNORE = ['.', '..', '.git']
   const pathname = p
 
@@ -276,7 +471,7 @@ const Workspace = function Workspace (p) {
     listFiles: async function listFiles () {
       const list = (await fs.promises.readdir(pathname))
 
-      return list.filter(entry => IGNORE.indexOf(entry) === -1)
+      return list.filter((e) => IGNORE.indexOf(e) === -1)
     },
     readFile: async function readFile (p) {
       const data = await fs.promises.readFileAsync(path.join(pathname, p))
@@ -286,7 +481,7 @@ const Workspace = function Workspace (p) {
   }
 }
 
-const Database = function Database (p) {
+const database = function database (p) {
   const sha1 = require('./sha1.js')
   const zlib = require('./zlib.js')
 
@@ -295,7 +490,7 @@ const Database = function Database (p) {
   const pathname = p
 
   async function store (object) {
-    const string = object.toString() // Encoding::ASCII_8BIT
+    const string = object.toString()
 
     const content = `${object.type} ${string.length}\0${string}`
 
@@ -313,7 +508,7 @@ const Database = function Database (p) {
 
     try {
       if (!fs.promises.existsSync(dirname)) {
-        fs.promises.mkdirp(dirname)
+        await fs.promises.mkdirp(dirname)
       }
 
       const compressed = zlib.deflate(content, zlib.FASTEST)
@@ -331,20 +526,21 @@ const Database = function Database (p) {
   }
 }
 
-const Blob = function Blob (d) {
+const blob = function blob (d) {
   // attr_accessor :oid ?
 
   const data = d
   const type = 'blob'
 
   return {
+    type,
     toString: function toString () {
       return data
     }
   }
 }
 
-const Entry = function Entry (n, o) {
+const entry = function entry (n, o) {
   // attr_reader :name, :oid ?
 
   return {
@@ -353,7 +549,7 @@ const Entry = function Entry (n, o) {
   }
 }
 
-const Tree = function Tree (entries) {
+const tree = function tree (entries) {
   const MODE = '100644'
 
   // attr_accessor :oid
@@ -362,7 +558,7 @@ const Tree = function Tree (entries) {
 
   // https://stackoverflow.com/a/33920309/7665043
   function stringToHex (s) {
-    return s.split('').map(function(c) {
+    return s.split('').map(function (c) {
       return ('0' + c.charCodeAt(0).toString(16))
         .slice(-2)
     }).join('')
@@ -373,9 +569,9 @@ const Tree = function Tree (entries) {
     let i = 0
     let ascii = ''
 
-    while (i < hex.length / 2) {
+    while (i < h.length / 2) {
       ascii += String.fromCharCode(
-        parseInt(hex.substr(i * 2, 2),16)
+        parseInt(h.substr(i * 2, 2), 16)
       )
 
       i++
@@ -385,7 +581,7 @@ const Tree = function Tree (entries) {
   }
 
   function packArray (...contents) {
-    return contents[0] + '\0' + string2Hex(contents[1])
+    return contents[0] + '\0' + stringToHex(contents[1])
   }
 
   function toString () {
@@ -394,9 +590,15 @@ const Tree = function Tree (entries) {
 
     return entries.join('')
   }
+
+  return {
+    type,
+    packArray,
+    toString
+  }
 }
 
-const Commit = function Commit (t, a, m) {
+const commit = function commit (t, a, m) {
   // attr_accessor :oid
 
   const tree = t
@@ -416,9 +618,14 @@ const Commit = function Commit (t, a, m) {
 
     return lines.join('\n')
   }
+
+  return {
+    type,
+    toString
+  }
 }
 
-const Author = function Author (n, e, t) {
+function author (n, e, t) {
   const name = n
   const email = e
   const time = t
@@ -435,6 +642,7 @@ const Author = function Author (n, e, t) {
 async function selfTest () {
   let passed = 0
   let optional = 0
+  let skipped = 0
   let total = 0
 
   const tests = await runTests()
@@ -443,21 +651,40 @@ async function selfTest () {
     const check = '\u2714'
     const cross = '\u274C'
     const lines = []
+    let nested = false
+    let titled = false
 
-    for (let r of tests) {
-      if (r.skip) continue
+    for (const t of tests) {
+      if (typeof t.title !== 'undefined') {
+        lines.push((titled
+          ? '\n'
+          : '') + t.title)
+        nested = true
+        titled = true
+        continue
+      }
 
-      if (r.result || r.flags.fails) passed++
+      if (t.skip) {
+        skipped++
+        total++
+        continue
+      }
 
-      if (r.result === false && r.flags.optional) optional++
+      if (t.result || t.flags.fails) passed++
+
+      if (t.result === false && t.flags.optional) optional++
 
       total++
 
-      lines.push((r.result || (r.flags.fails || r.result === true)
-        ? check : cross) + ' ' + r.name +
-        (typeof r.error !== 'undefined'
-          ? '\n  Thrown - ' + r.error
-          : ''))
+      lines.push((nested
+        ? '    '
+        : '') +
+          (t.result || (t.flags.fails || t.result === true)
+            ? check
+            : cross) + ' ' + t.name +
+            (typeof t.error !== 'undefined'
+              ? '\n  Thrown - ' + t.error
+              : ''))
     }
 
     return lines.join('\n')
@@ -466,7 +693,10 @@ async function selfTest () {
   (optional > 0
     ? optional + ' optional tests failed.\n'
     : '') +
-  ((passed / total * 100) + '').substring(0,5) +
+    (skipped > 0
+      ? skipped + ' tests skipped.\n'
+      : '') +
+  ((passed / ((total - optional) - skipped) * 100) + '').substring(0, 5) +
   '% passed (' + passed + '/' + total + ').'
 
   document.getElementById('status').value = ''
@@ -518,27 +748,273 @@ async function runTests () {
     await _test(name, func, { optional: true })
   }
 
+  test.title = function (text) {
+    tests.push({
+      title: text
+    })
+  }
+
   /*
-   * General error handling tests
+   *
+   * -------- Tests --------
+   *
+   *
    */
 
-  test.fails('Expected failure from false', function failsFalse () {
+  test.title('Error handling')
+
+  test.fails('Expected failure from test returning false', function failsFalse () {
     setStatus('Expecting failure 1')
 
     return false
   })
 
-  test.fails('Expected failure from throw', function failsThrow () {
+  test.fails('Expected failure from test throwing error', function failsThrow () {
     setStatus('Expecting failure 2')
 
     throw new Error('Oops')
   })
 
-  test ('Author returns formatted string', function authorFunc () {
-    const now = new Date()
-    const author = Author('Tom', 't@b.c', now)
+  /*
+   * UI functionality
+   */
 
-    return author === `Tom <t@b.c> ${now}`
+  test.title('User interface')
+
+  const search = document.getElementById('search')
+  const searchInput = document.getElementById('searchInput')
+
+  test('Shows search input', function showSearch () {
+    search.click()
+
+    return searchInput.style.display !== 'none'
+  })
+
+  test('Hides search input', function () {
+    search.click()
+
+    return searchInput.style.display === 'none'
+  })
+
+  const add = document.getElementById('add')
+  const modal = document.getElementById('modal')
+  const addModal = document.getElementById('addModal')
+  const addClone = document.getElementById('addClone')
+  const repoSource = document.getElementById('repoSource')
+  const repoPath = document.getElementById('repoPath')
+  const cloneRecursively = document.getElementById('cloneRecursively')
+  const xmodal = document.getElementById('xmodal')
+  const cancelModal = document.getElementById('cancelModal')
+  const okModal = document.getElementById('okModal')
+
+  test('Shows modal from add', function () {
+    add.click()
+
+    return (modal.style.display !== 'none' && addModal.style.display !== 'none')
+  })
+
+  test('Changes to clone tab', function () {
+    addClone.click()
+
+    return (repoSource.style.display !== 'none' && repoPath.style.display !== 'none' && cloneRecursively.style.display !== 'none')
+  })
+
+  test('Changes to init tab', function () {
+    addInit.click()
+
+    return (repoSource.style.display === 'none' && repoPath.style.display !== 'none' && cloneRecursively.style.display === 'none')
+  })
+
+  test('Changes to import tab', function () {
+    addImport.click()
+
+    return (repoSource.style.display === 'none' && repoPath.style.display !== 'none' && cloneRecursively.style.display === 'none')
+  })
+
+  test('Hides modal after click outside of it', function () {
+    modal.click()
+
+    return modal.style.display === 'none'
+  })
+
+  test('Hides modal when X is clicked', function () {
+    add.click()
+    xmodal.click()
+
+    return modal.style.display === 'none'
+  })
+
+  test('Hides modal when Cancel is clicked', function () {
+    add.click()
+    cancelModal.click()
+
+    return modal.style.display === 'none'
+  })
+
+  test('Hides modal when Ok is clicked', function () {
+    add.click()
+    okModal.click()
+
+    return modal.style.display === 'none'
+  })
+
+  /*
+   * FS functionality
+   */
+
+  test.title('Filesystem')
+
+  await test('Write file', async function () {
+    await fs.promises.writeFile(Android.homeFolder() + '/.gitui-test-file.txt', 'Hello, world!')
+
+    return true
+  })
+
+  await test('Read file', async function () {
+    const data = await fs.promises.readFile(Android.homeFolder() + '/.gitui-test-file.txt')
+
+    return data === 'Hello, world!'
+  })
+
+  await test('File exists', async function () {
+    const result = await fs.promises.exists(Android.homeFolder() + '/.gitui-test-file.txt')
+    await fs.promises.delete(Android.homeFolder() + '/.gitui-test-file.txt')
+
+    return result
+  })
+
+  await test('Rename', async function () {
+    await fs.promises.mkdir(Android.homeFolder() + '/.gitui-test-dir')
+    await fs.promises.rename(Android.homeFolder() + '/.gitui-test-dir', Android.homeFolder() + '/.gitui-test-folder')
+    const result = await fs.promises.exists(Android.homeFolder() + '/.gitui-test-folder')
+    await fs.promises.rmdir(Android.homeFolder() + '/.gitui-test-folder')
+
+    return result
+  })
+
+  await test('Make directory', async function () {
+    await fs.promises.mkdir(Android.homeFolder() + '/.gitui-test-dir')
+
+    return true
+  })
+
+  await test('Delete path', async function () {
+    await fs.promises.delete(Android.homeFolder() + '/.gitui-test-dir')
+
+    return true
+  })
+
+  await test('Remove directory', async function () {
+    await fs.promises.mkdir(Android.homeFolder() + '/.gitui-test-dir')
+    await fs.promises.writeFile(Android.homeFolder() + '/.gitui-test-dir/.gitui-test-file.txt', 'Hello, world!')
+    const result = await fs.promises.exists(Android.homeFolder() + '/.gitui-test-dir/.gitui-test-file.txt')
+    await fs.promises.rmdir(Android.homeFolder() + '/.gitui-test-dir')
+
+    return result
+  })
+
+  await test('Read directory', async function () {
+    await fs.promises.mkdir(Android.homeFolder() + '/.gitui-test-dir')
+    await fs.promises.writeFile(Android.homeFolder() + '/.gitui-test-dir/.gitui-test-file1.txt', '')
+    await fs.promises.writeFile(Android.homeFolder() + '/.gitui-test-dir/.gitui-test-file2.txt', '')
+    const result = (await fs.promises.readdir(Android.homeFolder() + '/.gitui-test-dir'))
+    await fs.promises.rmdir(Android.homeFolder() + '/.gitui-test-dir')
+
+    if (result.error) {
+      throw new Error(result.error)
+    }
+
+    const split = result.split(',')
+
+    return (split.includes('.gitui-test-file1.txt') && split.includes('.gitui-test-file2.txt'))
+  })
+
+  await test('Disk usage', async function () {
+    await fs.promises.writeFile(Android.homeFolder() + '/.gitui-test-file.txt', 'Hello, world!')
+    const result = await fs.promises.du(Android.homeFolder() + '/.gitui-test-file.txt')
+    await fs.promises.delete(Android.homeFolder() + '/.gitui-test-file.txt')
+
+    return (result !== '')
+  })
+
+  await test('Can stat', async function () {
+    await fs.promises.mkdir(Android.homeFolder() + '/.gitui-test-dir')
+    await fs.promises.writeFile(Android.homeFolder() + '/.gitui-test-dir/.gitui-test-file1.txt', '')
+    const resultStat = (await fs.promises.stat(Android.homeFolder() + '/.gitui-test-dir'))
+
+    await fs.promises.rmdir(Android.homeFolder() + '/.gitui-test-dir')
+
+    if (resultStat.error) {
+      throw new Error(resultStat.error)
+    }
+
+    return true
+  })
+
+  await test.optional('Can symlink', async function () {
+    await fs.promises.writeFile(Android.homeFolder() + '/.gitui-test-file.txt', 'Hello, world!')
+
+    const result = await fs.promises.symlink(Android.homeFolder() + '/.gitui-test-file.txt', Android.homeFolder() + '/.gitui-test-file-link')
+    if (result.error) {
+      throw new Error(result.error)
+    }
+
+    await fs.promises.delete(Android.homeFolder() + '/.gitui-test-file.txt')
+
+    return result
+  })
+
+  await test.optional('Can lstat', async function () {
+    await fs.promises.writeFile(Android.homeFolder() + '/.gitui-test-file.txt', 'Hello, world!')
+
+    const resultLink = await fs.promises.symlink(Android.homeFolder() + '/.gitui-test-file.txt', Android.homeFolder() + '/.gitui-test-file-link')
+    if (resultLink.error) {
+      throw new Error(resultLink.error)
+    }
+
+    const resultFile = await fs.promises.lstat(Android.homeFolder() + '/.gitui-test-file.txt')
+    if (resultFile.error) {
+      throw new Error(resultFile.error)
+    }
+
+    const resultLinkStat = await fs.promises.lstat(Android.homeFolder() + '/.gitui-test-file-link')
+    if (resultLinkStat.error) {
+      throw new Error(resultLinkStat.error)
+    }
+
+    await fs.promises.delete(Android.homeFolder() + '/.gitui-test-file.txt')
+
+    return true
+  })
+
+  await test.optional('Can readlink', async function () {
+    await fs.promises.writeFile(Android.homeFolder() + '/.gitui-test-file.txt', 'Hello, world!')
+    const resultLink = await fs.promises.symlink(Android.homeFolder() + '/.gitui-test-file.txt', './.gitui-test-file-link')
+    if (resultLink.error) {
+      throw new Error(resultLink.error)
+    }
+
+    const result = await fs.promises.readlink(Android.homeFolder() + '/.gitui-test-file-link')
+    if (result.error) {
+      throw new Error(result.error)
+    }
+
+    await fs.promises.delete(Android.homeFolder() + '/.gitui-test-file.txt')
+
+    return true
+  })
+
+  /*
+   * Git/jit functionality
+   */
+
+  test.title('Git (jit)')
+
+  test('author returns formatted string', function authorFunc () {
+    const now = new Date()
+    const auth = author('Tom', 't@b.c', now)
+
+    return auth === `Tom <t@b.c> ${now}`
   })
 
   return tests
