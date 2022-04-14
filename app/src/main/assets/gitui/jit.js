@@ -308,7 +308,7 @@ const fs = {
 
     readdir: async function readdir (path) {
       if (Android.havePermission()) {
-        const result = (await Android.readDir(path))
+        const result = await Android.readDir(path)
 
         if (result.indexOf('"error') === 0) {
           throw new Error(JSON.parse(result))
@@ -397,16 +397,16 @@ const process = {
  * Git functionality
  */
 
-const workspace = function workspace (p) {
+function workspace (p) {
   const IGNORE = ['.', '..', '.git']
   const pathname = p
 
   return {
     pathname,
     listFiles: async function listFiles () {
-      const list = (await fs.promises.readdir(pathname))
+      const list = await fs.promises.readdir(pathname)
 
-      return list.filter((e) => IGNORE.indexOf(e) === -1)
+      return list.split(',').filter((e) => IGNORE.indexOf(e) === -1)
     },
     readFile: async function readFile (p) {
       const data = await fs.promises.readFileAsync(path.join(pathname, p))
@@ -1021,6 +1021,23 @@ async function runTests () {
    */
 
   test.title('Git (jit)')
+
+  await test('Workspace.listFiles', async function workspaceListFiles () {
+    await fs.promises.mkdir(Android.homeFolder() + '/gitui-test')
+    const ws = workspace(Android.homeFolder() + '/gitui-test')
+
+    const files = ['bye.txt', 'hi.txt']
+
+    await fs.promises.writeFile(path.join(ws.pathname, files[0]), 'goodbye workspace')
+    await fs.promises.writeFile(path.join(ws.pathname, files[1]), 'hello workspace')
+
+    const list = await ws.listFiles()
+
+    await fs.promises.rmdir(Android.homeFolder() + '/gitui-test')
+
+    return list.filter((i) => files.indexOf(i) !== -1)
+      .length > 0
+  })
 
   test('author returns formatted string', function authorFunc () {
     const now = new Date()
