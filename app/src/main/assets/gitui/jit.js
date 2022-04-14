@@ -397,71 +397,6 @@ const process = {
  * Git functionality
  */
 
-async function jit (args) {
-  const command = args.shift()
-
-  let argPath, rootPath, gitPath, dbPath,
-    workspaceObj, databaseObj,
-    entries, data, blobObj, treeObj, commitObj,
-    name, email, authorObj, message, dir
-
-  switch (command) {
-    case 'init':
-      argPath = path.dirname(args[0] || process.pwd())
-      rootPath = path.absolute(argPath)
-      gitPath = path.join(rootPath, '.git')
-
-      for (const dir of ['objects', 'refs']) {
-        try {
-          await fs.promises.mkdirp(path.join(gitPath, dir))
-        } catch (error) {
-          process.stderr(error)
-        }
-      }
-
-      process.stdout(`Initialized empty Jit repository in ${rootPath}`)
-      break
-
-    case 'commit':
-      rootPath = process.pwd()
-      gitPath = path.join(rootPath, '.git')
-      dbPath = path.join(gitPath, 'objects')
-
-      workspaceObj = workspace(rootPath)
-      databaseObj = database(dbPath)
-
-      entries = await workspaceObj.listFiles()
-
-      for (let i = 0; i < entries.length; i++) {
-        dir = entries[i]
-        data = await workspaceObj.read_file(dir)
-        blobObj = blob(data)
-        await databaseObj.store(blobObj)
-
-        entries[i] = entry(dir, blobObj.oid)
-      }
-
-      treeObj = tree(entries)
-      await databaseObj.store(treeObj)
-
-      name = process.ENV.GIT_author_NAME
-      email = process.ENV.GIT_author_EMAIL
-      authorObj = author(name, email, new Date())
-      message = args[1]
-      commitObj = commit(treeObj.oid, authorObj, message)
-
-      await databaseObj.store(commitObj)
-
-      await fs.promises.writeAsync(path.join(gitPath, 'HEAD'), commitObj.oid)
-
-      process.stdout(`[(root-commit) ${commitObj.oid}] ${message.split('\n').slice(0, 1)}`)
-      break
-
-    default:
-      throw new Error(`${command} is not a Jit command`)
-  }
-}
-
 const workspace = function workspace (p) {
   const IGNORE = ['.', '..', '.git']
   const pathname = p
@@ -501,28 +436,30 @@ const database = function database (p) {
 
   // private
 
+  function generateTempName () {
+    // https://stackoverflow.com/a/12502559/7665043
+    return Math.random().toString(36).slice(2)
+  }
+
   async function writeObject (oid, content) {
     const objectPath = path.join(pathname, oid.slice(0, 2), oid.slice(2, -1))
     const dirname = path.dirname(objectPath)
     const tempPath = path.join(dirname, generateTempName())
 
-    try {
-      if (!fs.promises.existsSync(dirname)) {
-        await fs.promises.mkdirp(dirname)
-      }
-
-      const compressed = zlib.deflate(content, zlib.FASTEST)
-
-      await fs.promises.writeFileAsync(tempPath, compressed)
-
-      await fs.promises.rename(tempPath, objectPath)
-    } catch (err) {
+    if (!fs.promises.existsSync(dirname)) {
+      await fs.promises.mkdirp(dirname)
     }
 
-    function generateTempName () {
-      // https://stackoverflow.com/a/12502559/7665043
-      return Math.random().toString(36).slice(2)
-    }
+    const compressed = zlib.deflate(content, zlib.FASTEST)
+
+    await fs.promises.writeFileAsync(tempPath, compressed)
+
+    await fs.promises.rename(tempPath, objectPath)
+  }
+
+  return {
+    pathname,
+    store
   }
 }
 
@@ -586,7 +523,7 @@ const tree = function tree (entries) {
 
   function toString () {
     entries = entries.sort()
-      .map(e => packArray([`${MODE} ${e.name}`, e.oid]))
+      .map((e) => packArray([`${MODE} ${e.name}`, e.oid]))
 
     return entries.join('')
   }
@@ -596,6 +533,14 @@ const tree = function tree (entries) {
     packArray,
     toString
   }
+}
+
+function author (n, e, t) {
+  const name = n
+  const email = e
+  const time = t
+
+  return `${name} <${email}> ${time}`
 }
 
 const commit = function commit (t, a, m) {
@@ -625,15 +570,80 @@ const commit = function commit (t, a, m) {
   }
 }
 
-function author (n, e, t) {
-  const name = n
-  const email = e
-  const time = t
+async function jit (args) {
+  const command = args.shift()
 
-  return `${name} <${email}> ${time}`
+  let argPath, rootPath, gitPath, dbPath,
+    workspaceObj, databaseObj,
+    entries, data, blobObj, treeObj, commitObj,
+    name, email, authorObj, message, dir
+
+  switch (command) {
+    case 'init':
+      try {
+        argPath = path.dirname(args[0] || process.pwd())
+        rootPath = path.absolute(argPath)
+        gitPath = path.join(rootPath, '.git')
+
+        for (const dir of ['objects', 'refs']) {
+          try {
+            await fs.promises.mkdirp(path.join(gitPath, dir))
+          } catch (error) {
+            process.stderr(error)
+          }
+        }
+
+        process.stdout(`Initialized empty Jit repository in ${rootPath}`)
+      } catch (err) {
+        setStatus(err)
+      }
+
+      break
+
+    case 'commit':
+      try {
+        rootPath = process.pwd()
+        gitPath = path.join(rootPath, '.git')
+        dbPath = path.join(gitPath, 'objects')
+
+        workspaceObj = workspace(rootPath)
+        databaseObj = database(dbPath)
+
+        entries = await workspaceObj.listFiles()
+
+        for (let i = 0; i < entries.length; i++) {
+          dir = entries[i]
+          data = await workspaceObj.read_file(dir)
+          blobObj = blob(data)
+          await databaseObj.store(blobObj)
+
+          entries[i] = entry(dir, blobObj.oid)
+        }
+
+        treeObj = tree(entries)
+        await databaseObj.store(treeObj)
+
+        name = process.ENV.GIT_author_NAME
+        email = process.ENV.GIT_author_EMAIL
+        authorObj = author(name, email, new Date())
+        message = args[1]
+        commitObj = commit(treeObj.oid, authorObj, message)
+
+        await databaseObj.store(commitObj)
+
+        await fs.promises.writeAsync(path.join(gitPath, 'HEAD'), commitObj.oid)
+
+        process.stdout(`[(root-commit) ${commitObj.oid}] ${message.split('\n').slice(0, 1)}`)
+      } catch (err) {
+        setStatus(err)
+      }
+
+      break
+
+    default:
+      throw new Error(`${command} is not a Jit command`)
+  }
 }
-
-// jit(process.argv)
 
 /*
  * Testing

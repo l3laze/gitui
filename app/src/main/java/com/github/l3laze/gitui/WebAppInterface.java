@@ -284,7 +284,7 @@ public class WebAppInterface {
         // contents.append(copyAssetFileToFolder(path, targetFolder) + " bytes");
         copyAssetFileToFolder(path, targetFolder);
       } else {
-        if (path.startsWith("images") || path.startsWith("sounds") || path.startsWith("webkit")) {
+        if (path.startsWith("images") || path.startsWith("sounds") || path.startsWith("webkit") || false) {
           // Log.i(LOG_TAG, "  > Skipping " + path);
         }
 
