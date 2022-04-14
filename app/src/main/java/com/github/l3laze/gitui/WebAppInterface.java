@@ -71,25 +71,6 @@ public class WebAppInterface {
     return new File(path).getParentFile().getAbsolutePath();
   }
 
-  @JavascriptInterface
-  public static String cwd() {
-    return System.getProperty("user.dir");
-  }
-
-  public static String getExplanation(String errName, String context, String path) {
-    StringBuilder sb = new StringBuilder();
-
-    if (errName.equals("ENOENT")) {
-      sb.append("A component of " + path + " does not exist or is a dangling symbolic link.");
-    } else if (errName.equals("EACCES")) {
-      sb.append("Write access to " + path + " (or one of the directories in the path) is denied.");
-    } else {
-      sb.append("No explanation available for " + errName + ".");
-    }
-
-    return sb.toString();
-  }
-
   public static String buildStats(StructStat stats) {
     StringBuilder sb = new StringBuilder();
     sb.append("{");
@@ -112,6 +93,24 @@ public class WebAppInterface {
     return sb.toString();
   }
 
+  public static String getExplanation(String errName, String context, String path) {
+    StringBuilder sb = new StringBuilder();
+
+    if (errName.equals("ENOENT")) {
+      sb.append("Part of " + path + " does not exist or is a dangling symbolic link.");
+    } else if (errName.equals("EACCES")) {
+      sb.append("Access to " + path + " (or one of the directories) was denied.");
+    } else if (errName.equals("EROFS")) {
+      sb.append("The path " + path + " is on a read-only filesystem.");
+    } else if (errName.equals("EPERM")) {
+      sb.append("Not permitted to perform " + context + ". Likely SELinux related.");
+    } else {
+      sb.append("No explanation available for " + errName + ".");
+    }
+
+    return sb.toString();
+  }
+
   @JavascriptInterface
   public static String lstat(String path) {
     try {
@@ -119,7 +118,7 @@ public class WebAppInterface {
     } catch (ErrnoException ee) {
       String name = android.system.OsConstants.errnoName(ee.errno);
 
-      return "{\"error\":\"" + name + " (" + ee.errno + ")" /*: " + getExplanation(name, "lstat", path)*/ + "\"}";
+      return "{\"error\":\"" + name + ": " + getExplanation(name, "lstat", path) + "\"}";
     }
   }
 
@@ -130,8 +129,34 @@ public class WebAppInterface {
     } catch (ErrnoException ee) {
       String name = android.system.OsConstants.errnoName(ee.errno);
 
-      return "{\"error\":\"" + name + " (" + ee.errno + ") " /*: " + getExplanation(name, "stat", path)*/ + "\"}";
+      return "{\"error\":\"" + name + ": " + getExplanation(name, "stat", path) + "\"}";
     }
+  }
+
+  @JavascriptInterface
+  public static String readlink(String path) {
+    try {
+      android.system.Os.readlink(path);
+    } catch (ErrnoException ee) {
+      String name = android.system.OsConstants.errnoName(ee.errno);
+
+      return "{\"error\":\"" + name + ": " + getExplanation(name, "readlink", path) + "\"}";
+    }
+
+    return "true";
+  }
+
+  @JavascriptInterface
+  public static String createSymlink(String source, String target) {
+    try {
+      android.system.Os.symlink(source, target);
+    } catch (ErrnoException ee) {
+      String name = android.system.OsConstants.errnoName(ee.errno);
+
+      return "{\"error\":\"" + name + ": " + getExplanation(name, "symlink", source + " OR " + target) + "\"}";
+    }
+
+    return "true";
   }
 
   @JavascriptInterface
@@ -191,21 +216,8 @@ public class WebAppInterface {
     try {
       return String.join(",", new File(path).list());
     } catch (SecurityException se) {
-      return "{\"error\":" + se.getMessage() + "\"}";
+      return "{\"error\":\"" + se.getMessage() + "\"}";
     }
-  }
-
-  @JavascriptInterface
-  public static String readlink(String path) {
-    try {
-      android.system.Os.readlink(path);
-    } catch (ErrnoException ee) {
-      String name = android.system.OsConstants.errnoName(ee.errno);
-
-      return "{\"error\":\"" + name + " (" + ee.errno + ") " /*: " + getExplanation(name, "readlink", path)*/ + "\"}";
-    }
-
-    return "true";
   }
 
   @JavascriptInterface
@@ -213,29 +225,17 @@ public class WebAppInterface {
     try {
       return new String("" + Files.size(Paths.get(path)));
     } catch (IOException ioe) {
-      return "{\"error\":" + ioe.getMessage() + "\"}";
+      return "{\"error\":\"" + ioe.getMessage() + "\"}";
     }
-  }
-
-  @JavascriptInterface
-  public static String createSymlink(String source, String target) {
-    try {
-      android.system.Os.symlink(source, target);
-    } catch (ErrnoException ee) {
-      return "{\"error\":\"" + android.system.OsConstants.errnoName(ee.errno) +
-        " (" + ee.errno + "): Write access to the directory containing linkpath is " +
-        "denied, or one of the directories in the path prefix of " +
-        "linkpath did not allow search permission.\"}";
-    }
-
-    return "true";
   }
 
   @JavascriptInterface
   public static void move(String source, String target) {
     try {
       Files.move(Paths.get(source), Paths.get(target));
-    } catch (IOException ioe) {}
+    } catch (IOException ioe) {
+      // return "{\"error\":\"" + ioe.getMessage() + "\"}";
+    }
   }
 
   @JavascriptInterface
@@ -261,6 +261,11 @@ public class WebAppInterface {
   @JavascriptInterface
   public static String homeFolder() {
     return Environment.getExternalStorageDirectory().getAbsolutePath();
+  }
+
+  @JavascriptInterface
+  public static String pwd() {
+    return System.getProperty("user.dir");
   }
 
   @JavascriptInterface
@@ -315,7 +320,7 @@ public class WebAppInterface {
       total += read;
     }
 
-    in .close();
+    in.close();
     out.flush();
     out.close();
 

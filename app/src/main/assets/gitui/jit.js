@@ -955,11 +955,11 @@ async function runTests () {
     await fs.promises.writeFile(Android.homeFolder() + '/.gitui-test-file.txt', 'Hello, world!')
 
     const result = await fs.promises.symlink(Android.homeFolder() + '/.gitui-test-file.txt', Android.homeFolder() + '/.gitui-test-file-link')
+    await fs.promises.delete(Android.homeFolder() + '/.gitui-test-file.txt')
+
     if (result.error) {
       throw new Error(result.error)
     }
-
-    await fs.promises.delete(Android.homeFolder() + '/.gitui-test-file.txt')
 
     return result
   })
@@ -989,7 +989,7 @@ async function runTests () {
 
   await test.optional('Can readlink', async function () {
     await fs.promises.writeFile(Android.homeFolder() + '/.gitui-test-file.txt', 'Hello, world!')
-    const resultLink = await fs.promises.symlink(Android.homeFolder() + '/.gitui-test-file.txt', './.gitui-test-file-link')
+    const resultLink = await fs.promises.symlink(Android.homeFolder() + '/.gitui-test-file.txt', Android.homeFolder() + '/.gitui-test-file-link')
     if (resultLink.error) {
       throw new Error(resultLink.error)
     }
@@ -1003,6 +1003,8 @@ async function runTests () {
 
     return true
   })
+
+  await fs.promises.delete(Android.homeFolder() + '/.gitui-test-file.txt')
 
   /*
    * Git/jit functionality
