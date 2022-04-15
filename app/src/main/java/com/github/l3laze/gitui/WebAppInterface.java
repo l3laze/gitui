@@ -23,7 +23,11 @@ public class WebAppInterface {
   protected static boolean symlinkPermission = false;
 
   WebAppInterface(Context c) {
-    mContext = c.getApplicationContext();
+    setInterface(c.getApplicationContext());
+  }
+
+  private void setInterface(Context c) {
+    mContext = c;
   }
 
   @JavascriptInterface
