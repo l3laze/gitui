@@ -1,5 +1,19 @@
 'use strict'
 
+/*global Android, pullToRefresh, ptrAnimatesMaterial, addInit, addImport  */
+/*eslint no-undef: "error"*/
+
+function setStatus (text) {
+  const stat = document.getElementById('status')
+
+  if (stat.value !== '') {
+    stat.value += '\n'
+  }
+
+  stat.value += text
+  stat.scrollTop = stat.scrollHeight
+}
+
 function capture (msg, source, line, column, err) {
   setStatus('"' + msg + '" in "' +
     source + '" at line ' + line +
@@ -24,17 +38,6 @@ pullToRefresh({
     }, 750)
   }
 })
-
-function setStatus (text) {
-  const stat = document.getElementById('status')
-
-  if (stat.value !== '') {
-    stat.value += '\n'
-  }
-
-  stat.value += text
-  stat.scrollTop = stat.scrollHeight
-}
 
 window.onload = function startUp () {
   setStatus(window.location)
@@ -359,36 +362,36 @@ const fs = {
 }
 
 const path = {
-  normalize: function (p) {
+  normalize: (p) => {
     return Android.normalize(p)
   },
 
-  relativize: function (p) {
+  relativize: (p) => {
     return Android.relativize(p)
   },
 
-  dirname: function (p) {
+  dirname: (p) => {
     return Android.dirname(p)
   },
 
-  getAbsolutePath: function (p) {
+  getAbsolutePath: (p) => {
     return Android.getAbsolutePath(p)
   },
 
-  join: function (a, b) {
+  join: (a, b) => {
     // return Android.resolve(a, b)
     return a + '/' + b
   }
 }
 
 const process = {
-  pwd: Android.cwd(),
+  pwd: () => Android.cwd(),
 
-  stderr: function (message) {
+  stderr: (message) => {
     setStatus(message)
   },
 
-  stdout: function (message) {
+  stdout: (message) => {
     setStatus(message)
   }
 }
@@ -420,21 +423,7 @@ const database = function database (p) {
   const sha1 = require('./sha1.js')
   const zlib = require('./zlib.js')
 
-  // public
-
-  const pathname = p
-
-  async function store (object) {
-    const string = object.toString()
-
-    const content = `${object.type} ${string.length}\0${string}`
-
-    object.oid = sha1.hexdigest(content)
-
-    await writeObject(object.oid, content)
-  }
-
-  // private
+    // private
 
   function generateTempName () {
     // https://stackoverflow.com/a/12502559/7665043
@@ -456,6 +445,21 @@ const database = function database (p) {
 
     await fs.promises.rename(tempPath, objectPath)
   }
+
+  // public
+
+  const pathname = p
+
+  async function store (object) {
+    const string = object.toString()
+
+    const content = `${object.type} ${string.length}\0${string}`
+
+    object.oid = sha1.hexdigest(content)
+
+    await writeObject(object.oid, content)
+  }
+
 
   return {
     pathname,

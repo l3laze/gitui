@@ -23,7 +23,7 @@ public class WebAppInterface {
   protected static boolean symlinkPermission = false;
 
   WebAppInterface(Context c) {
-    mContext = c;
+    mContext = c.getApplicationContext();
   }
 
   @JavascriptInterface
@@ -283,11 +283,7 @@ public class WebAppInterface {
         // contents.append("Copying " + path + " @ ");
         // contents.append(copyAssetFileToFolder(path, targetFolder) + " bytes");
         copyAssetFileToFolder(path, targetFolder);
-      } else {
-        if (path.startsWith("images") || path.startsWith("sounds") || path.startsWith("webkit") || false) {
-          // Log.i(LOG_TAG, "  > Skipping " + path);
-        }
-
+      } else if (!path.startsWith("images") && !path.startsWith("sounds") && !path.startsWith("webkit")) {
         File targetDir = new File(targetFolder, path);
         targetDir.mkdirs();
 
