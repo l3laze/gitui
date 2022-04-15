@@ -1,7 +1,7 @@
 'use strict'
 
-/*global Android, pullToRefresh, ptrAnimatesMaterial, addInit, addImport  */
-/*eslint no-undef: "error"*/
+/* global Android, pullToRefresh, ptrAnimatesMaterial, addInit, addImport, event */
+/* eslint no-undef: "error" */
 
 function setStatus (text) {
   const stat = document.getElementById('status')
@@ -39,17 +39,7 @@ pullToRefresh({
   }
 })
 
-window.onload = function startUp () {
-  setStatus(window.location)
-  // setStatus('Storage permission? ' + Android.havePermission())
-
-  if (window.location.search === '?test') {
-    setStatus('Running tests...')
-
-    selfTest()
-  }
-}
-
+// eslint-disable-next-line no-unused-vars
 function initCustomization () {
   if (Android.havePermission()) {
     const externalHome = Android.copyAssets('gitui')
@@ -68,6 +58,7 @@ function initCustomization () {
   }
 }
 
+// eslint-disable-next-line no-unused-vars
 function copyText (text) {
   if (typeof Android !== 'undefined') {
     Android.copyToClipboard(text)
@@ -83,6 +74,7 @@ function copyText (text) {
   event.stopPropagation()
 }
 
+// eslint-disable-next-line no-unused-vars
 function toggleDisplay (eid, displayAs) {
   const el = document.getElementById(eid)
 
@@ -97,6 +89,7 @@ function toggleDisplay (eid, displayAs) {
   }
 }
 
+// eslint-disable-next-line no-unused-vars
 function toggleFooter () {
   const statusArea = document.getElementById('status')
 
@@ -108,6 +101,7 @@ function toggleFooter () {
   }
 }
 
+// eslint-disable-next-line no-unused-vars
 function searchRepos (text) {
   const repos = document.getElementsByClassName('repo-card')
 
@@ -124,15 +118,18 @@ function searchRepos (text) {
   }
 }
 
+// eslint-disable-next-line no-unused-vars
 function createRepo (way) {
   setStatus('Creating repo via ' + way + '...')
 }
 
+// eslint-disable-next-line no-unused-vars
 function openRepo (which) {
   setStatus('Opening ' + which)
   event.stopPropagation()
 }
 
+// eslint-disable-next-line no-unused-vars
 function pullRepo (which) {
   const behind = event.target.querySelector('.commitsBehind') || event.target.parentElement.querySelector('.commitsBehind')
 
@@ -142,6 +139,7 @@ function pullRepo (which) {
   event.stopPropagation()
 }
 
+// eslint-disable-next-line no-unused-vars
 function pushRepo (which) {
   const ahead = event.target.querySelector('.commitsAhead') || event.target.parentElement.querySelector('.commitsAhead')
 
@@ -151,6 +149,7 @@ function pushRepo (which) {
   event.stopPropagation()
 }
 
+// eslint-disable-next-line no-unused-vars
 function openModal (title) {
   const modal = document.getElementById('modal')
   const modes = [
@@ -173,12 +172,14 @@ function openModal (title) {
   setStatus('Opened modal for ' + title)
 }
 
+// eslint-disable-next-line no-unused-vars
 function cancelModal () {
   document.getElementById('modal').style.display = 'none'
 
   setStatus('Cancelled modal')
 }
 
+// eslint-disable-next-line no-unused-vars
 function okModal () {
   const modal = document.getElementById('modal')
   modal.style.display = 'none'
@@ -190,6 +191,7 @@ function okModal () {
   }
 }
 
+// eslint-disable-next-line no-unused-vars
 function openTab (which, whatClass, btnClass) {
   const controls = {
     clone: ['repoSource', 'repoPath', 'cloneRecursively'],
@@ -223,6 +225,7 @@ window.onclick = function clickWin (event) {
   }
 }
 
+// eslint-disable-next-line no-unused-vars
 function toggleStatus () {
   const sb = document.getElementById('statusBar')
   const ta = document.getElementById('status')
@@ -297,24 +300,12 @@ const fs = {
       }
     },
 
-    lstat: async function lstat (path) {
-      if (Android.havePermission()) {
-        const stats = (await Android.lstat(path))
-
-        if (stats.indexOf('"error') === 0) {
-          throw new Error(JSON.parse(stats).error)
-        }
-
-        return JSON.parse(stats)
-      }
-    },
-
     readdir: async function readdir (path) {
       if (Android.havePermission()) {
         const result = await Android.readDir(path)
 
         if (result.indexOf('"error') === 0) {
-          throw new Error(JSON.parse(result))
+          throw new Error(JSON.parse(result).error)
         }
 
         return result
@@ -333,31 +324,45 @@ const fs = {
       }
     },
 
-    readlink: async function readlink (path) {
-      if (Android.havePermission()) {
-        const result = (await Android.readlink(path))
-
-        if (result.indexOf('"error') === 0) {
-          throw new Error(JSON.parse(result))
-        }
-
-        return JSON.parse(result)
-      }
-    },
-
     du: async function du (path) {
       if (Android.havePermission()) {
         return (await Android.sizeOnDisk(path))
       }
-    },
-
-    symlink: async function symlink (from, to) {
-      if (Android.havePermission()) {
-        const result = (await Android.createSymlink(from, to))
-
-        return JSON.parse(result)
-      }
     }
+
+    /*
+      readlink: async function readlink (path) {
+        if (Android.havePermission()) {
+          const result = (await Android.readlink(path))
+
+          if (result.indexOf('"error') === 0) {
+            throw new Error(JSON.parse(result))
+          }
+
+          return JSON.parse(result)
+        }
+      },
+
+      lstat: async function lstat (path) {
+        if (Android.havePermission()) {
+          const stats = (await Android.lstat(path))
+
+          if (stats.indexOf('"error') === 0) {
+            throw new Error(JSON.parse(stats).error)
+          }
+
+          return JSON.parse(stats)
+        }
+      },
+
+      symlink: async function symlink (from, to) {
+        if (Android.havePermission()) {
+          const result = (await Android.createSymlink(from, to))
+
+          return JSON.parse(result)
+        }
+      }
+    */
   }
 }
 
@@ -404,26 +409,30 @@ function workspace (p) {
   const IGNORE = ['.', '..', '.git']
   const pathname = p
 
+  async function listFiles () {
+    const list = await fs.promises.readdir(pathname)
+
+    return list.split(',').filter((e) => IGNORE.indexOf(e) === -1)
+  }
+
+  async function readFile (p) {
+    const data = await fs.promises.readFileAsync(path.join(pathname, p))
+
+    return data
+  }
+
   return {
     pathname,
-    listFiles: async function listFiles () {
-      const list = await fs.promises.readdir(pathname)
-
-      return list.split(',').filter((e) => IGNORE.indexOf(e) === -1)
-    },
-    readFile: async function readFile (p) {
-      const data = await fs.promises.readFileAsync(path.join(pathname, p))
-
-      return data
-    }
+    listFiles,
+    readFile
   }
 }
 
-const database = function database (p) {
+function database (p) {
   const sha1 = require('./sha1.js')
   const zlib = require('./zlib.js')
 
-    // private
+  const pathname = p
 
   function generateTempName () {
     // https://stackoverflow.com/a/12502559/7665043
@@ -446,10 +455,6 @@ const database = function database (p) {
     await fs.promises.rename(tempPath, objectPath)
   }
 
-  // public
-
-  const pathname = p
-
   async function store (object) {
     const string = object.toString()
 
@@ -460,7 +465,6 @@ const database = function database (p) {
     await writeObject(object.oid, content)
   }
 
-
   return {
     pathname,
     store
@@ -468,29 +472,28 @@ const database = function database (p) {
 }
 
 const blob = function blob (d) {
-  // attr_accessor :oid ?
-
   const data = d
   const type = 'blob'
 
+  function toString () {
+    return data
+  }
+
   return {
     type,
-    toString: function toString () {
-      return data
-    }
+    toString
   }
 }
 
-const entry = function entry (n, o) {
-  // attr_reader :name, :oid ?
-
+const entry = function entry (name, oid) {
   return {
-    name: n,
-    oid: o
+    name,
+    oid
   }
 }
 
-const tree = function tree (entries) {
+function tree (...e) {
+  const entries = e
   const MODE = '100644'
 
   // attr_accessor :oid
@@ -506,6 +509,7 @@ const tree = function tree (entries) {
   }
 
   // https://stackoverflow.com/questions/2250752/ruby-array-pack-and-unpack-functionality-in-javascript/2250867#comment4152720_2250867
+  // eslint-disable-next-line no-unused-vars
   function hexToString (h) {
     let i = 0
     let ascii = ''
@@ -521,15 +525,14 @@ const tree = function tree (entries) {
     return ascii
   }
 
-  function packArray (...contents) {
-    return contents[0] + '\0' + stringToHex(contents[1])
+  function packArray (data, oid) {
+    return data + '\0' + stringToHex(oid)
   }
 
   function toString () {
-    entries = entries.sort()
-      .map((e) => packArray([`${MODE} ${e.name}`, e.oid]))
-
-    return entries.join('')
+    return entries.sort()
+      .map((e) => packArray(`${MODE} ${e.name}`, e.oid))
+      .join(',') // was ''
   }
 
   return {
@@ -539,11 +542,7 @@ const tree = function tree (entries) {
   }
 }
 
-function author (n, e, t) {
-  const name = n
-  const email = e
-  const time = t
-
+function author (name, email, time) {
   return `${name} <${email}> ${time}`
 }
 
@@ -574,6 +573,7 @@ const commit = function commit (t, a, m) {
   }
 }
 
+// eslint-disable-next-line no-unused-vars
 async function jit (args) {
   const command = args.shift()
 
@@ -653,71 +653,6 @@ async function jit (args) {
  * Testing
  */
 
-async function selfTest () {
-  let passed = 0
-  let optional = 0
-  let skipped = 0
-  let total = 0
-
-  const tests = await runTests()
-
-  const message = (function () {
-    const check = '\u2714'
-    const cross = '\u274C'
-    const lines = []
-    let nested = false
-    let titled = false
-
-    for (const t of tests) {
-      if (typeof t.title !== 'undefined') {
-        lines.push((titled
-          ? '\n'
-          : '') + t.title)
-        nested = true
-        titled = true
-        continue
-      }
-
-      if (t.skip) {
-        skipped++
-        total++
-        continue
-      }
-
-      if (t.result || t.flags.fails) passed++
-
-      if (t.result === false && t.flags.optional) optional++
-
-      total++
-
-      lines.push((nested
-        ? '    '
-        : '') +
-          (t.result || (t.flags.fails || t.result === true)
-            ? check
-            : cross) + ' ' + t.name +
-            (typeof t.error !== 'undefined'
-              ? '\n  Thrown - ' + t.error
-              : ''))
-    }
-
-    return lines.join('\n')
-  }()) +
-  '\n\n' +
-  (optional > 0
-    ? optional + ' optional tests failed.\n'
-    : '') +
-    (skipped > 0
-      ? skipped + ' tests skipped.\n'
-      : '') +
-  ((passed / ((total - optional) - skipped) * 100) + '').substring(0, 5) +
-  '% passed (' + passed + '/' + total + ').'
-
-  document.getElementById('status').value = ''
-
-  setStatus(message)
-}
-
 async function runTests () {
   const tests = []
   const _test = async function _test (name, testFunc, flags) {
@@ -790,7 +725,7 @@ async function runTests () {
   })
 
   /*
-   * UI functionality
+   * UI tests
    */
 
   test.title('User interface')
@@ -873,7 +808,7 @@ async function runTests () {
   })
 
   /*
-   * FS functionality
+   * Filesystem tests
    */
 
   test.title('Filesystem')
@@ -965,58 +900,60 @@ async function runTests () {
     return true
   })
 
-  await test.optional('Can symlink', async function () {
-    await fs.promises.writeFile(Android.homeFolder() + '/.gitui-test-file.txt', 'Hello, world!')
+  /*
+    await test.optional('Can symlink', async function () {
+      await fs.promises.writeFile(Android.homeFolder() + '/.gitui-test-file.txt', 'Hello, world!')
 
-    const result = await fs.promises.symlink(Android.homeFolder() + '/.gitui-test-file.txt', Android.homeFolder() + '/.gitui-test-file-link')
-    await fs.promises.delete(Android.homeFolder() + '/.gitui-test-file.txt')
+      const result = await fs.promises.symlink(Android.homeFolder() + '/.gitui-test-file.txt', Android.homeFolder() + '/.gitui-test-file-link')
+      await fs.promises.delete(Android.homeFolder() + '/.gitui-test-file.txt')
 
-    if (result.error) {
-      throw new Error(result.error)
-    }
+      if (result.error) {
+        throw new Error(result.error)
+      }
 
-    return result
-  })
+      return result
+    })
 
-  await test.optional('Can lstat', async function () {
-    await fs.promises.writeFile(Android.homeFolder() + '/.gitui-test-file.txt', 'Hello, world!')
+    await test.optional('Can lstat', async function () {
+      await fs.promises.writeFile(Android.homeFolder() + '/.gitui-test-file.txt', 'Hello, world!')
 
-    const resultLink = await fs.promises.symlink(Android.homeFolder() + '/.gitui-test-file.txt', Android.homeFolder() + '/.gitui-test-file-link')
-    if (resultLink.error) {
-      throw new Error(resultLink.error)
-    }
+      const resultLink = await fs.promises.symlink(Android.homeFolder() + '/.gitui-test-file.txt', Android.homeFolder() + '/.gitui-test-file-link')
+      if (resultLink.error) {
+        throw new Error(resultLink.error)
+      }
 
-    const resultFile = await fs.promises.lstat(Android.homeFolder() + '/.gitui-test-file.txt')
-    if (resultFile.error) {
-      throw new Error(resultFile.error)
-    }
+      const resultFile = await fs.promises.lstat(Android.homeFolder() + '/.gitui-test-file.txt')
+      if (resultFile.error) {
+        throw new Error(resultFile.error)
+      }
 
-    const resultLinkStat = await fs.promises.lstat(Android.homeFolder() + '/.gitui-test-file-link')
-    if (resultLinkStat.error) {
-      throw new Error(resultLinkStat.error)
-    }
+      const resultLinkStat = await fs.promises.lstat(Android.homeFolder() + '/.gitui-test-file-link')
+      if (resultLinkStat.error) {
+        throw new Error(resultLinkStat.error)
+      }
 
-    await fs.promises.delete(Android.homeFolder() + '/.gitui-test-file.txt')
+      await fs.promises.delete(Android.homeFolder() + '/.gitui-test-file.txt')
 
-    return true
-  })
+      return true
+    })
 
-  await test.optional('Can readlink', async function () {
-    await fs.promises.writeFile(Android.homeFolder() + '/.gitui-test-file.txt', 'Hello, world!')
-    const resultLink = await fs.promises.symlink(Android.homeFolder() + '/.gitui-test-file.txt', Android.homeFolder() + '/.gitui-test-file-link')
-    if (resultLink.error) {
-      throw new Error(resultLink.error)
-    }
+    await test.optional('Can readlink', async function () {
+      await fs.promises.writeFile(Android.homeFolder() + '/.gitui-test-file.txt', 'Hello, world!')
+      const resultLink = await fs.promises.symlink(Android.homeFolder() + '/.gitui-test-file.txt', Android.homeFolder() + '/.gitui-test-file-link')
+      if (resultLink.error) {
+        throw new Error(resultLink.error)
+      }
 
-    const result = await fs.promises.readlink(Android.homeFolder() + '/.gitui-test-file-link')
-    if (result.error) {
-      throw new Error(result.error)
-    }
+      const result = await fs.promises.readlink(Android.homeFolder() + '/.gitui-test-file-link')
+      if (result.error) {
+        throw new Error(result.error)
+      }
 
-    await fs.promises.delete(Android.homeFolder() + '/.gitui-test-file.txt')
+      await fs.promises.delete(Android.homeFolder() + '/.gitui-test-file.txt')
 
-    return true
-  })
+      return true
+    })
+  */
 
   await fs.promises.delete(Android.homeFolder() + '/.gitui-test-file.txt')
 
@@ -1026,7 +963,7 @@ async function runTests () {
 
   test.title('Git (jit)')
 
-  await test('Workspace.listFiles', async function workspaceListFiles () {
+  await test('Workspace.listFiles', async function testWorkspaceListFiles () {
     await fs.promises.mkdir(Android.homeFolder() + '/gitui-test')
     const ws = workspace(Android.homeFolder() + '/gitui-test')
 
@@ -1043,7 +980,30 @@ async function runTests () {
       .length > 0
   })
 
-  test('author returns formatted string', function authorFunc () {
+  test('Blob test', function testBlob () {
+    const data = 'Blob'
+    const blobby = blob(data)
+
+    return (blobby.toString() === data && blobby.type === 'blob')
+  })
+
+  test('Entry test', function testEntry () {
+    const e = entry('hello', 'world')
+
+    return (e.name === 'hello' && e.oid === 'world')
+  })
+
+  test('Tree test', function testTree () {
+    const e = entry('hello', 'world')
+    const t = tree(e)
+
+    setStatus(t.toString().replace('\0', '_'))
+
+    // hello\0776f726c64 as a contiguous string was crashing the script. Lol.
+    return (t.toString() === '100644 hello\0' + '776f726c64' && t.type === 'tree')
+  })
+
+  test('author returns formatted string', function testAuthor () {
     const now = new Date()
     const auth = author('Tom', 't@b.c', now)
 
@@ -1051,4 +1011,84 @@ async function runTests () {
   })
 
   return tests
+}
+
+async function selfTest () {
+  let passed = 0
+  let optionalFailures = 0
+  let skipped = 0
+  let total = 0
+
+  const tests = await runTests()
+
+  const message = (function () {
+    const check = '\u2714'
+    const cross = '\u274C'
+    const lines = []
+    let nested = false
+    let titled = false
+
+    for (const t of tests) {
+      if (typeof t.title !== 'undefined') {
+        lines.push((titled
+          ? '\n'
+          : '') + t.title)
+        nested = true
+        titled = true
+        continue
+      }
+
+      if (t.skip) {
+        skipped++
+        total++
+        continue
+      }
+
+      if (!t.flags.optional && (t.result || t.flags.fails)) {
+        passed++
+      }
+
+      if (t.result === false && t.flags.optional) {
+        optionalFailures++
+      }
+
+      total++
+
+      lines.push((nested
+        ? '    '
+        : '') +
+          (t.result || (t.flags.fails || t.result === true)
+            ? check
+            : cross) + ' ' + t.name +
+            (typeof t.error !== 'undefined'
+              ? '\n  Thrown - ' + t.error
+              : ''))
+    }
+
+    return lines.join('\n')
+  }()) +
+  '\n\n' +
+  (optionalFailures > 0
+    ? optionalFailures + ' optional tests failed.\n'
+    : '') +
+    (skipped > 0
+      ? skipped + ' tests skipped.\n'
+      : '') +
+  ((passed / ((total - optionalFailures) - skipped) * 100) + '').substring(0, 5) +
+  '% required tests passed (' + passed + '/' + total + ').'
+
+  document.getElementById('status').value = ''
+
+  setStatus(message)
+}
+
+window.onload = function startUp () {
+  setStatus(window.location)
+  // setStatus('Storage permission? ' + Android.havePermission())
+
+  if (window.location.search === '?test') {
+    setStatus('Running tests...')
+
+    selfTest()
+  }
 }
