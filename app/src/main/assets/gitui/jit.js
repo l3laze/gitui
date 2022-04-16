@@ -496,8 +496,6 @@ function tree (...e) {
   const entries = e
   const MODE = '100644'
 
-  // attr_accessor :oid
-
   const type = 'tree'
 
   // https://stackoverflow.com/a/33920309/7665043
@@ -547,8 +545,6 @@ function author (name, email, time) {
 }
 
 const commit = function commit (t, a, m) {
-  // attr_accessor :oid
-
   const tree = t
   const author = a
   const message = m
@@ -697,6 +693,12 @@ async function runTests () {
     await _test(name, func, { optional: true })
   }
 
+  test.optional.fails = async function optionalFail (name, func) {
+    await _test(name, func, { optional: true, fails: true })
+  }
+
+  test.fails.optional = test.optional.fails
+
   test.title = function (text) {
     tests.push({
       title: text
@@ -705,12 +707,24 @@ async function runTests () {
 
   /*
    *
-   * -------- Tests --------
+   * -------- Testing --------
    *
    *
    */
 
-  test.title('Error handling')
+  test.title('Test framework')
+
+  test.optional('Optional test returning true passes', function optionalPass () {
+    return true
+  })
+
+  test.optional.fails('Optional test returning false fails', function optionalPass () {
+    return false
+  })
+
+  test.skip('Tests can be skipped', function skipTest () {
+    throw new Error('This should never throw.')
+  })
 
   test.fails('Expected failure from test returning false', function failsFalse () {
     setStatus('Expecting failure 1')
@@ -1025,7 +1039,10 @@ async function selfTest () {
     const check = '\u2714'
     const cross = '\u274C'
     const lines = []
-    let nested = false
+
+    let nested = false // Has section title.
+
+    // Has previous section, next title starts a new one.
     let titled = false
 
     for (const t of tests) {
@@ -1036,19 +1053,15 @@ async function selfTest () {
         nested = true
         titled = true
         continue
-      }
-
-      if (t.skip) {
+      } else if (t.skip) {
         skipped++
         total++
         continue
-      }
-
-      if (!t.flags.optional && (t.result || t.flags.fails)) {
+      } else if (!t.flags.optional && (t.result || t.flags.fails)) {
         passed++
-      }
-
-      if (t.result === false && t.flags.optional) {
+      } else if (!t.result && t.flags.fails) {
+        passed++
+      } else {
         optionalFailures++
       }
 
@@ -1075,7 +1088,7 @@ async function selfTest () {
       ? skipped + ' tests skipped.\n'
       : '') +
   ((passed / ((total - optionalFailures) - skipped) * 100) + '').substring(0, 5) +
-  '% required tests passed (' + passed + '/' + total + ').'
+  '% required tests passed (' + passed + '/' + ((total - optionalFailures) - skipped) + ').'
 
   document.getElementById('status').value = ''
 
