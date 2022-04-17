@@ -81,6 +81,9 @@ a.w3-btn:active, a.w3-btn:focus, a.w3-btn:hover {
   padding-right: 4px;
   resize: none;
   overflow-y: scroll;
+  font-family: monospace;
+  font-size: 0.8em;
+  font-weight: 800;
 }
 
 .text-of {

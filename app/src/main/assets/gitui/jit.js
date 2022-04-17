@@ -91,13 +91,12 @@ function toggleDisplay (eid, displayAs) {
 
 // eslint-disable-next-line no-unused-vars
 function toggleFooter () {
-  const statusArea = document.getElementById('status')
+  const statusBar = document.getElementById('statusBar')
 
-  if (statusArea.style.display === 'none') {
-    statusArea.style.display = 'inline-block'
-    statusArea.scrollTop = statusArea.scrollHeight
+  if (statusBar.style.display === 'none') {
+    statusBar.style.display = 'inline-block'
   } else {
-    statusArea.style.display = 'none'
+    statusBar.style.display = 'none'
   }
 }
 
@@ -699,6 +698,12 @@ async function runTests () {
 
   test.fails.optional = test.optional.fails
 
+  test.optional.skip = test.skip
+  test.skip.optional = test.skip
+
+  test.fails.skip = test.skip
+  test.skip.fails = test.skip
+
   test.title = function (text) {
     tests.push({
       title: text
@@ -714,16 +719,8 @@ async function runTests () {
 
   test.title('Test framework')
 
-  test.optional('Optional test returning true passes', function optionalPass () {
+  test('Test returning true passes', function passes () {
     return true
-  })
-
-  test.optional.fails('Optional test returning false fails', function optionalPass () {
-    return false
-  })
-
-  test.skip('Tests can be skipped', function skipTest () {
-    throw new Error('This should never throw.')
   })
 
   test.fails('Expected failure from test returning false', function failsFalse () {
@@ -736,6 +733,14 @@ async function runTests () {
     setStatus('Expecting failure 2')
 
     throw new Error('Oops')
+  })
+
+  test.optional('Optional tests may fail', function optionalFail () {
+    return false
+  })
+
+  test.skip('Tests can be skipped', function skipTest () {
+    throw new Error('This should never throw.')
   })
 
   /*
@@ -914,60 +919,58 @@ async function runTests () {
     return true
   })
 
-  /*
-    await test.optional('Can symlink', async function () {
-      await fs.promises.writeFile(Android.homeFolder() + '/.gitui-test-file.txt', 'Hello, world!')
+  await test.optional.skip('Can symlink', async function () {
+    await fs.promises.writeFile(Android.homeFolder() + '/.gitui-test-file.txt', 'Hello, world!')
 
-      const result = await fs.promises.symlink(Android.homeFolder() + '/.gitui-test-file.txt', Android.homeFolder() + '/.gitui-test-file-link')
-      await fs.promises.delete(Android.homeFolder() + '/.gitui-test-file.txt')
+    const result = await fs.promises.symlink(Android.homeFolder() + '/.gitui-test-file.txt', Android.homeFolder() + '/.gitui-test-file-link')
+    await fs.promises.delete(Android.homeFolder() + '/.gitui-test-file.txt')
 
-      if (result.error) {
-        throw new Error(result.error)
-      }
+    if (result.error) {
+      throw new Error(result.error)
+    }
 
-      return result
-    })
+    return result
+  })
 
-    await test.optional('Can lstat', async function () {
-      await fs.promises.writeFile(Android.homeFolder() + '/.gitui-test-file.txt', 'Hello, world!')
+  await test.optional.skip('Can lstat', async function () {
+    await fs.promises.writeFile(Android.homeFolder() + '/.gitui-test-file.txt', 'Hello, world!')
 
-      const resultLink = await fs.promises.symlink(Android.homeFolder() + '/.gitui-test-file.txt', Android.homeFolder() + '/.gitui-test-file-link')
-      if (resultLink.error) {
-        throw new Error(resultLink.error)
-      }
+    const resultLink = await fs.promises.symlink(Android.homeFolder() + '/.gitui-test-file.txt', Android.homeFolder() + '/.gitui-test-file-link')
+    if (resultLink.error) {
+      throw new Error(resultLink.error)
+    }
 
-      const resultFile = await fs.promises.lstat(Android.homeFolder() + '/.gitui-test-file.txt')
-      if (resultFile.error) {
-        throw new Error(resultFile.error)
-      }
+    const resultFile = await fs.promises.lstat(Android.homeFolder() + '/.gitui-test-file.txt')
+    if (resultFile.error) {
+      throw new Error(resultFile.error)
+    }
 
-      const resultLinkStat = await fs.promises.lstat(Android.homeFolder() + '/.gitui-test-file-link')
-      if (resultLinkStat.error) {
-        throw new Error(resultLinkStat.error)
-      }
+    const resultLinkStat = await fs.promises.lstat(Android.homeFolder() + '/.gitui-test-file-link')
+    if (resultLinkStat.error) {
+      throw new Error(resultLinkStat.error)
+    }
 
-      await fs.promises.delete(Android.homeFolder() + '/.gitui-test-file.txt')
+    await fs.promises.delete(Android.homeFolder() + '/.gitui-test-file.txt')
 
-      return true
-    })
+    return true
+  })
 
-    await test.optional('Can readlink', async function () {
-      await fs.promises.writeFile(Android.homeFolder() + '/.gitui-test-file.txt', 'Hello, world!')
-      const resultLink = await fs.promises.symlink(Android.homeFolder() + '/.gitui-test-file.txt', Android.homeFolder() + '/.gitui-test-file-link')
-      if (resultLink.error) {
-        throw new Error(resultLink.error)
-      }
+  await test.optional.skip('Can readlink', async function () {
+    await fs.promises.writeFile(Android.homeFolder() + '/.gitui-test-file.txt', 'Hello, world!')
+    const resultLink = await fs.promises.symlink(Android.homeFolder() + '/.gitui-test-file.txt', Android.homeFolder() + '/.gitui-test-file-link')
+    if (resultLink.error) {
+      throw new Error(resultLink.error)
+    }
 
-      const result = await fs.promises.readlink(Android.homeFolder() + '/.gitui-test-file-link')
-      if (result.error) {
-        throw new Error(result.error)
-      }
+    const result = await fs.promises.readlink(Android.homeFolder() + '/.gitui-test-file-link')
+    if (result.error) {
+      throw new Error(result.error)
+    }
 
-      await fs.promises.delete(Android.homeFolder() + '/.gitui-test-file.txt')
+    await fs.promises.delete(Android.homeFolder() + '/.gitui-test-file.txt')
 
-      return true
-    })
-  */
+    return true
+  })
 
   await fs.promises.delete(Android.homeFolder() + '/.gitui-test-file.txt')
 
@@ -1027,71 +1030,78 @@ async function runTests () {
   return tests
 }
 
-async function selfTest () {
-  let passed = 0
-  let optionalFailures = 0
+function testReport (tests) {
+  const check = '\u2713'
+  const cross = '\u2716'
+  const dash = '\u2014'
+
+  const lines = []
+
   let skipped = 0
   let total = 0
+  let passed = 0
+  let optional = 0
+  let nested = false
+  let nextLine = ''
 
-  const tests = await runTests()
+  for (const t of tests) {
+    if (typeof t.title !== 'undefined') {
+      nested = true
 
-  const message = (function () {
-    const check = '\u2714'
-    const cross = '\u274C'
-    const lines = []
-
-    let nested = false // Has section title.
-
-    // Has previous section, next title starts a new one.
-    let titled = false
-
-    for (const t of tests) {
-      if (typeof t.title !== 'undefined') {
-        lines.push((titled
-          ? '\n'
-          : '') + t.title)
-        nested = true
-        titled = true
-        continue
-      } else if (t.skip) {
-        skipped++
-        total++
-        continue
-      } else if (!t.flags.optional && (t.result || t.flags.fails)) {
-        passed++
-      } else if (!t.result && t.flags.fails) {
-        passed++
-      } else {
-        optionalFailures++
+      lines.push('_'.repeat(t.title.length))
+      lines.push(t.title)
+    } else {
+      if (nested) {
+        nextLine = '  '
       }
 
-      total++
+      if (t.skip) {
+        lines.push(nextLine + dash + ' ' + t.name)
 
-      lines.push((nested
-        ? '    '
-        : '') +
-          (t.result || (t.flags.fails || t.result === true)
-            ? check
-            : cross) + ' ' + t.name +
-            (typeof t.error !== 'undefined'
-              ? '\n  Thrown - ' + t.error
-              : ''))
+        skipped++
+      } else if (t.result || (!t.result && t.flags.fails)) {
+        lines.push(nextLine + check + ' ' + t.name)
+
+        passed++
+        total++
+      } else {
+        lines.push(nextLine + cross + ' ' + t.name)
+
+        if (t.flags.optional) {
+          optional++
+        } else {
+          total++
+        }
+      }
     }
 
-    return lines.join('\n')
-  }()) +
-  '\n\n' +
-  (optionalFailures > 0
-    ? optionalFailures + ' optional tests failed.\n'
-    : '') +
-    (skipped > 0
-      ? skipped + ' tests skipped.\n'
-      : '') +
-  ((passed / ((total - optionalFailures) - skipped) * 100) + '').substring(0, 5) +
-  '% required tests passed (' + passed + '/' + ((total - optionalFailures) - skipped) + ').'
+    if (typeof t.error !== 'undefined') {
+      lines.push(`    Thrown - ${t.error}`)
+    }
+  }
+
+  lines.push('--------')
+
+  if (optional > 0) {
+    lines.push(optional + ' optional tests failed.')
+  }
+
+  if (skipped > 0) {
+    lines.push(skipped + ' tests skipped.')
+  }
+
+  const percent = ('' + ((passed / total) * 100)).substring(0, 5)
+
+  lines.push(`${percent}% required tests passed (${passed}/${total})`)
+
+  return lines.join('\n')
+}
+
+async function selfTest () {
+  const tests = await runTests()
+  const message = testReport(tests)
 
   document.getElementById('status').value = ''
-
   setStatus(message)
 }
 
@@ -1100,8 +1110,6 @@ window.onload = function startUp () {
   // setStatus('Storage permission? ' + Android.havePermission())
 
   if (window.location.search === '?test') {
-    setStatus('Running tests...')
-
     selfTest()
   }
 }
