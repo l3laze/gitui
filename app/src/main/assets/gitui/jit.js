@@ -230,15 +230,15 @@ function toggleStatus () {
   const ta = document.getElementById('status')
   const xs = document.getElementById('xstatus')
 
-  sb.style.height = (sb.style.height !== '94%'
-    ? '94%'
+  sb.style.height = (sb.style.height !== '96.18%'
+    ? '96.18%'
     : '')
 
   if (sb.style.height === '') {
-    ta.style.height = '6.1em'
+    ta.style.height = '8em'
     xs.innerText = 'Expand'
   } else {
-    ta.style.height = '96%'
+    ta.style.height = '98%'
     xs.innerText = 'Collapse'
   }
 }
@@ -1100,7 +1100,7 @@ function testReport (tests) {
     }
   }
 
-  lines.push('\n-------')
+  lines.push('\n-------\n')
 
   if (optional > 0) {
     lines.push(cross + ' ' + optional + ' optional failure(s)')
