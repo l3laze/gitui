@@ -414,11 +414,7 @@ function workspace (p) {
     return list.split(',').filter((e) => IGNORE.indexOf(e) === -1)
   }
 
-  async function readFile (p) {
-    const data = await fs.promises.readFileAsync(path.join(pathname, p))
-
-    return data
-  }
+  const readFile = fs.promises.readFile
 
   return {
     pathname,
@@ -428,14 +424,14 @@ function workspace (p) {
 }
 
 function database (p) {
-  const sha1 = require('./sha1.js')
-  const zlib = require('./zlib.js')
+  // const sha1 = require('./sha1.js')
+  // const zlib = require('./zlib.js')
 
   const pathname = p
 
   function generateTempName () {
     // https://stackoverflow.com/a/12502559/7665043
-    return Math.random().toString(36).slice(2)
+    return 'tmp_obj' + Math.random().toString(36).slice(2)
   }
 
   async function writeObject (oid, content) {
@@ -450,7 +446,6 @@ function database (p) {
     const compressed = zlib.deflate(content, zlib.FASTEST)
 
     await fs.promises.writeFileAsync(tempPath, compressed)
-
     await fs.promises.rename(tempPath, objectPath)
   }
 
@@ -465,6 +460,7 @@ function database (p) {
   }
 
   return {
+    generateTempName,
     pathname,
     store
   }
@@ -529,7 +525,7 @@ function tree (...e) {
   function toString () {
     return entries.sort()
       .map((e) => packArray(`${MODE} ${e.name}`, e.oid))
-      .join(',') // was ''
+      .join('')
   }
 
   return {
@@ -975,10 +971,10 @@ async function runTests () {
   await fs.promises.delete(Android.homeFolder() + '/.gitui-test-file.txt')
 
   /*
-   * Git/jit functionality
+   * Git/jit external functionality
    */
 
-  test.title('Git (jit)')
+  test.title('Git/Jit')
 
   await test('Workspace.listFiles', async function testWorkspaceListFiles () {
     await fs.promises.mkdir(Android.homeFolder() + '/gitui-test')
@@ -995,6 +991,30 @@ async function runTests () {
 
     return list.filter((i) => files.indexOf(i) !== -1)
       .length > 0
+  })
+
+  await test('Workspace.readFile', async function testWorkspaceListFiles () {
+    await fs.promises.mkdir(Android.homeFolder() + '/gitui-test')
+    const ws = workspace(Android.homeFolder() + '/gitui-test')
+    const data = 'hello, workspace!'
+    const filename = 'hello.txt'
+
+    await fs.promises.writeFile(path.join(ws.pathname, filename), data)
+
+    const result = await ws.readFile(path.join(ws.pathname, filename))
+
+    if (result !== data) {
+      throw new Error(`workspace.readFile('${filename}') - "${result}" !== "${data}"`)
+    }
+
+    return true
+  })
+
+  test('Database.generateTempName', function gen () {
+    const db = database(path.join(Android.homeFolder(), 'gitui-test'))
+    const t = db.generateTempName()
+
+    return /tmp_obj.*/.test(t)
   })
 
   test('Blob test', function testBlob () {
@@ -1014,7 +1034,7 @@ async function runTests () {
     const e = entry('hello', 'world')
     const t = tree(e)
 
-    setStatus(t.toString().replace('\0', '_'))
+    // setStatus(t.toString().replace('\0', '_'))
 
     // hello\0776f726c64 as a contiguous string was crashing the script. Lol.
     return (t.toString() === '100644 hello\0' + '776f726c64' && t.type === 'tree')
@@ -1031,9 +1051,9 @@ async function runTests () {
 }
 
 function testReport (tests) {
-  const check = '\u2713'
-  const cross = '\u2716'
-  const dash = '\u2014'
+  const check = '+'
+  const cross = 'x'
+  const dash = '-'
 
   const lines = []
 
@@ -1076,23 +1096,25 @@ function testReport (tests) {
     }
 
     if (typeof t.error !== 'undefined') {
-      lines.push(`    Thrown - ${t.error}`)
+      lines.push(`Thrown - ${t.error}`)
     }
   }
 
-  lines.push('--------')
+  lines.push('\n-------')
 
   if (optional > 0) {
-    lines.push(optional + ' optional tests failed.')
+    lines.push(cross + ' ' + optional + ' optional failure(s)')
   }
 
   if (skipped > 0) {
-    lines.push(skipped + ' tests skipped.')
+    lines.push(dash + ' ' + skipped + ' skipped')
   }
+
+  lines.push(check + ' ' + passed + ' passed')
 
   const percent = ('' + ((passed / total) * 100)).substring(0, 5)
 
-  lines.push(`${percent}% required tests passed (${passed}/${total})`)
+  lines.push(`\n${percent}% required tests passed (${passed}/${total})`)
 
   return lines.join('\n')
 }
