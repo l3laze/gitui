@@ -238,7 +238,7 @@ function toggleStatus () {
     ta.style.height = '8em'
     xs.innerText = 'Expand'
   } else {
-    ta.style.height = '98%'
+    ta.style.height = '98.3%'
     xs.innerText = 'Collapse'
   }
 

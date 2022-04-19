@@ -77,8 +77,10 @@ a.w3-btn:active, a.w3-btn:focus, a.w3-btn:hover {
 #status {
   height: 8em;
   width: 99%;
-  margin-top: 8px;
-  margin-left: 2px;
+  margin-top: 4px;
+  margin-left: 1px;
+  margin-bottom: 2px;
+  padding-top: 2px;
   padding-left: 4px;
   padding-right: 4px;
   resize: none;
