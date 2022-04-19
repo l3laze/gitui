@@ -71,6 +71,7 @@ a.w3-btn:active, a.w3-btn:focus, a.w3-btn:hover {
 #xstatus {
   margin-right: 4px;
   padding: 8px;
+  font-weight: 800;
 }
 
 #status {

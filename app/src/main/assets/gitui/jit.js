@@ -241,6 +241,16 @@ function toggleStatus () {
     ta.style.height = '98%'
     xs.innerText = 'Collapse'
   }
+
+  ta.scrollTop = ta.scrollHeight
+}
+
+function collapseStatus () {
+  const xs = document.getElementById('xstatus')
+
+  if (xs.innerText === 'Collapse') {
+    toggleStatus()
+  }
 }
 
 /*
