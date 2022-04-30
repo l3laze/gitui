@@ -6,8 +6,13 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.FileOutputStream;
 
+import java.util.zip.Deflater;
+import java.util.zip.Inflater;
+
 import java.nio.file.Files;
 import java.nio.file.Paths;
+
+import java.security.MessageDigest;
 
 import android.webkit.JavascriptInterface;
 import android.content.Context;
@@ -15,6 +20,7 @@ import android.widget.Toast;
 import android.content.res.AssetManager;
 import android.os.Environment;
 import android.system.*;
+import android.util.Base64;
 
 public class WebAppInterface {
   protected static Context mContext;
@@ -28,6 +34,25 @@ public class WebAppInterface {
 
   private void setInterface(Context c) {
     mContext = c;
+  }
+
+  @JavascriptInterface
+  public static String toJSON(String[] obj) {
+    StringBuilder sb = new StringBuilder();
+
+    sb.append("{");
+
+    for (int o = 0; o < obj.length; o++) {
+      sb.append("\"" + obj[o] + "\":\"" + obj[++o] + "\"");
+
+      if (o + 1 < obj.length) {
+        sb.append(",");
+      }
+    }
+
+    sb.append("}");
+
+    return sb.toString();
   }
 
   @JavascriptInterface
@@ -122,7 +147,7 @@ public class WebAppInterface {
     } catch (ErrnoException ee) {
       String name = android.system.OsConstants.errnoName(ee.errno);
 
-      return "{\"error\":\"" + name + ": " + getExplanation(name, "lstat", path) + "\"}";
+      return "{\"error (" + name + ")\": " + getExplanation(name, "lstat", path) + "\"}";
     }
   }
 
@@ -133,7 +158,7 @@ public class WebAppInterface {
     } catch (ErrnoException ee) {
       String name = android.system.OsConstants.errnoName(ee.errno);
 
-      return "{\"error\":\"" + name + ": " + getExplanation(name, "stat", path) + "\"}";
+      return "{\"error (" + name + ")\": " + getExplanation(name, "stat", path) + "\"}";
     }
   }
 
@@ -144,7 +169,7 @@ public class WebAppInterface {
     } catch (ErrnoException ee) {
       String name = android.system.OsConstants.errnoName(ee.errno);
 
-      return "{\"error\":\"" + name + ": " + getExplanation(name, "readlink", path) + "\"}";
+      return "{\"error (" + name + ")\": " + getExplanation(name, "readlink", path) + "\"}";
     }
 
     return "true";
@@ -157,7 +182,7 @@ public class WebAppInterface {
     } catch (ErrnoException ee) {
       String name = android.system.OsConstants.errnoName(ee.errno);
 
-      return "{\"error\":\"" + name + ": " + getExplanation(name, "symlink", source + " OR " + target) + "\"}";
+      return "{\"error (" + name + ")\": " + getExplanation(name, "symlink", source + " OR " + target) + "\"}";
     }
 
     return "true";
@@ -170,7 +195,7 @@ public class WebAppInterface {
 
   @JavascriptInterface
   public static boolean isDir(String path) {
-    return new File(path).isFile();
+    return new File(path).isDirectory();
   }
 
   @JavascriptInterface
@@ -179,7 +204,7 @@ public class WebAppInterface {
   }
 
   @JavascriptInterface
-  public static Boolean fileExists(String path) {
+  public static boolean fileExists(String path) {
     return new File(path).exists();
   }
 
@@ -194,10 +219,14 @@ public class WebAppInterface {
   }
 
   @JavascriptInterface
-  public static void delete(String path) {
+  public static String delete(String path) {
     try {
       Files.delete(Paths.get(path));
-    } catch (IOException ioe) {}
+    } catch (IOException err) {
+      return "{\"error\":\"" + err.toString() + "\"}";
+    }
+
+    return "{}";
   }
 
   @JavascriptInterface
@@ -219,8 +248,8 @@ public class WebAppInterface {
   public static String readDir(String path) {
     try {
       return String.join(",", new File(path).list());
-    } catch (SecurityException se) {
-      return "{\"error\":\"" + se.getMessage() + "\"}";
+    } catch (SecurityException err) {
+      return "{\"error\":\"" + err.toString() + "\"}";
     }
   }
 
@@ -228,25 +257,31 @@ public class WebAppInterface {
   public static String sizeOnDisk(String path) {
     try {
       return new String("" + Files.size(Paths.get(path)));
-    } catch (IOException ioe) {
-      return "{\"error\":\"" + ioe.getMessage() + "\"}";
+    } catch (IOException err) {
+      return "{\"error\":\"" + err.toString() + "\"}";
     }
   }
 
   @JavascriptInterface
-  public static void move(String source, String target) {
+  public static String move(String source, String target) {
     try {
       Files.move(Paths.get(source), Paths.get(target));
-    } catch (IOException ioe) {
-      // return "{\"error\":\"" + ioe.getMessage() + "\"}";
+    } catch (IOException err) {
+      return "{\"error\":\"" + err.toString() + "\"}";
     }
+
+    return "{}";
   }
 
   @JavascriptInterface
-  public static void writeFile(String path, String data) {
+  public static String writeFile(String path, String data) {
     try {
       Files.write(Paths.get(path), data.getBytes());
-    } catch (IOException ioe) {}
+    } catch (IOException err) {
+      return "{\"error\":\"" + err.toString() + "\"}";
+    }
+
+    return "{}";
   }
 
   @JavascriptInterface
@@ -255,8 +290,8 @@ public class WebAppInterface {
 
     try {
       data = new String(Files.readAllBytes(Paths.get(path)));
-    } catch (Exception e) {
-      data = "";
+    } catch (Exception err) {
+      return "{\"error\":\"" + err.toString() + "\"}";
     }
 
     return data;
@@ -277,15 +312,11 @@ public class WebAppInterface {
     File targetFolder;
 
     try {
-      // Log.i(LOG_TAG, "Copying " + path);
-      // StringBuilder contents = new StringBuilder();
       targetFolder = new File(MainActivity.getInstance().webAppInterface.homeFolder());
       assetManager = mContext.getAssets();
       String sources[] = assetManager.list(path);
 
       if (sources.length == 0) {
-        // contents.append("Copying " + path + " @ ");
-        // contents.append(copyAssetFileToFolder(path, targetFolder) + " bytes");
         copyAssetFileToFolder(path, targetFolder);
       } else if (!path.startsWith("images") && !path.startsWith("sounds") && !path.startsWith("webkit")) {
         File targetDir = new File(targetFolder, path);
@@ -293,16 +324,13 @@ public class WebAppInterface {
 
         for (String source: sources) {
           String fullSourcePath = path.equals("") ? source : (path + File.separator + source);
-          // contents.append(copyAssets(fullSourcePath) + "\n");
           copyAssets(fullSourcePath);
         }
       }
 
-      // return contents.toString().replace("\n\n", "\n");
       return targetFolder.toString() + "/gitui";
-    } catch (Exception e) {
-      // return "error: " + e.toString();
-      return "";
+    } catch (Exception err) {
+      return "{\"error\":\"" + err.toString() + "\"}";
     }
   }
 
@@ -325,5 +353,70 @@ public class WebAppInterface {
     out.close();
 
     return "" + total;
+  }
+
+  @JavascriptInterface
+  public static String zlibDeflate(String input) {
+    try {
+      byte[] in = input.getBytes("UTF-8");
+      byte result[] = new byte[in.length * 4];
+      Deflater d = new Deflater(java.util.zip.Deflater.BEST_SPEED);
+
+      d.setInput(in);
+      d.finish();
+      int resultLength = d.deflate(result);
+      d.end();
+
+      String b64 = Base64.encodeToString(result, 0, resultLength, Base64.NO_WRAP);
+
+      return b64;
+    } catch (Exception err) {
+      return "{\"error\":\"" + err.toString() + "\"}";
+    }
+  }
+
+  @JavascriptInterface
+  public static String zlibInflate(String input) {
+    try {
+      byte[] in = Base64.decode(input, Base64.NO_WRAP);
+      byte result[] = new byte[in.length * 4];
+      Inflater i = new Inflater();
+
+      i.setInput(in, 0, in.length);
+      int resultLength = i.inflate(result);
+      i.end();
+
+      String out = new String(result, 0, resultLength, "UTF-8");
+
+      // String b64 = Base64.encodeToString(out.getBytes("UTF-8"), 0, out.length(), Base64.NO_WRAP);
+
+      return out;
+    } catch (Exception err) {
+      return "{\"error\":\"" + err.toString() + "\"}";
+    }
+  }
+
+  public static String bytesToHex(byte[] a) {
+    StringBuilder sb = new StringBuilder(a.length * 2);
+
+    for (byte b: a) {
+      sb.append(String.format("%02x", b));
+    }
+
+    return sb.toString();
+  }
+
+  @JavascriptInterface
+  public static String sha1Hex(String data) {
+    try {
+      MessageDigest digest = MessageDigest.getInstance("SHA-1");
+
+      digest.update(data.getBytes("UTF-16"));
+      byte[] digestBytes = digest.digest();
+
+      return bytesToHex(digestBytes);
+    } catch (java.io.UnsupportedEncodingException | java.security.NoSuchAlgorithmException err) {
+      return "{\"error\":\"" + err.toString() + "\"}";
+    }
   }
 }
