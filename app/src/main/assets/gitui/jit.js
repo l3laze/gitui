@@ -456,8 +456,8 @@ function database (p) {
 
   async function writeObject (oid, content) {
     try {
-      const dir = path.join(pathname, oid)
-      const objectPath = path.join(dir, content)
+      const dir = path.join(pathname, oid.substring(0, 2))
+      const objectPath = path.join(dir, oid.substring(2))
       const tempPath = path.join(dir, generateTempName())
       const exists = await fs.promises.exists(dir)
 
@@ -469,19 +469,24 @@ function database (p) {
 
       await fs.promises.writeFile(tempPath, compressed)
       await fs.promises.rename(tempPath, objectPath)
+      await fs.promises.delete(tempPath)
     } catch (err) {
-      throw new Error(err)
+      throw err
     }
   }
 
-  async function store (object, tempName) {
-    const string = object.toString()
-    const content = `${object.type} ${string.length}\0${string}`
-    const oid = Android.sha1Hex(content)
+  async function store (object) {
+    try {
+      const string = object.toString()
+      const content = `${object.type} ${string.length}\0${string}`
+      const oid = Android.sha1Hex(content)
 
-    await writeObject(pathname, tempName, oid, content)
+      await writeObject(oid, content)
 
-    return oid
+      return oid
+    } catch (err) {
+      throw err
+    }
   }
 
   return {
@@ -1045,22 +1050,17 @@ async function runTests () {
     await test('Database.store', async function dbStore () {
       const dbPath = path.join(Android.homeFolder(), 'gitui-test')
       const object = blob('hello world')
-
-      try {
         const db = database(dbPath)
 
-        const oid = (await db.store(object, db.generateTempName()))
+        const oid = (await db.store(object))
 
         object.oid = oid
 
         setStatus(object.oid)
 
-        const result = await fs.promises.exists(path.join(dbPath, oid))
+        const result = await fs.promises.exists(path.join(dbPath, oid.substring(0, 2)))
 
         return result
-      } catch (err) {
-        throw new Error(err)
-      }
     })
 
     test('Blob test', function testBlob () {

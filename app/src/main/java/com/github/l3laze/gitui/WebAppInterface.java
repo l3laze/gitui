@@ -219,14 +219,8 @@ public class WebAppInterface {
   }
 
   @JavascriptInterface
-  public static String delete(String path) {
-    try {
-      Files.delete(Paths.get(path));
-    } catch (IOException err) {
-      return "{\"error\":\"" + err.toString() + "\"}";
-    }
-
-    return "{}";
+  public static void delete(String path) {
+    new File(path).delete();
   }
 
   @JavascriptInterface
@@ -255,22 +249,12 @@ public class WebAppInterface {
 
   @JavascriptInterface
   public static String sizeOnDisk(String path) {
-    try {
-      return new String("" + Files.size(Paths.get(path)));
-    } catch (IOException err) {
-      return "{\"error\":\"" + err.toString() + "\"}";
-    }
+    return new File(path).length() + "";
   }
 
   @JavascriptInterface
-  public static String move(String source, String target) {
-    try {
-      Files.move(Paths.get(source), Paths.get(target));
-    } catch (IOException err) {
-      return "{\"error\":\"" + err.toString() + "\"}";
-    }
-
-    return "{}";
+  public static void move(String source, String target) {
+    new File(source).renameTo(new File(target));
   }
 
   @JavascriptInterface
