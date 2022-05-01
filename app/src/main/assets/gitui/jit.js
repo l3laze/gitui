@@ -288,7 +288,7 @@ const fs = {
 
     mkdirp: async function mkdirp (path) {
       if (Android.havePermission()) {
-        await Android.makeDirectorytree(path)
+        await Android.makeDirectoryTree(path)
       }
     },
 
@@ -384,9 +384,9 @@ const path = {
 
   dirname: (p) => Android.dirname(p),
 
-  getAbsolutePath: (p) => Android.getAbsolutePath(p),
+  absolute: (p) => Android.getAbsolutePath(p),
 
-  join: (a, b) => a + '/' + b
+  join: (...args) => args.reduce((a, b) => a + '/' + b, '')
 }
 
 const process = {
@@ -398,6 +398,10 @@ const process = {
 
   stdout: (message) => {
     setStatus(message)
+  },
+  ENV: {
+    GIT_author_NAME: '',
+    GIT_author_EMAIL: ''
   }
 }
 
@@ -447,7 +451,7 @@ function database (p) {
   // const sha1 = require('./sha1.js')
   // const zlib = require('./zlib.js')
 
-  const pathname = p
+  const pathname = path.join(p, '.git', 'objects')
 
   function generateTempName () {
     // https://stackoverflow.com/a/12502559/7665043
@@ -595,7 +599,7 @@ const commit = function commit (t, a, m) {
 }
 
 // eslint-disable-next-line no-unused-vars
-async function jit (args) {
+async function jit (...args) {
   const command = args.shift()
 
   let argPath, rootPath, gitPath, dbPath,
@@ -606,7 +610,7 @@ async function jit (args) {
   switch (command) {
     case 'init':
       try {
-        argPath = path.dirname(args[0] || process.pwd())
+        argPath = args[0] || process.pwd()
         rootPath = path.absolute(argPath)
         gitPath = path.join(rootPath, '.git')
 
@@ -627,7 +631,11 @@ async function jit (args) {
 
     case 'commit':
       try {
-        rootPath = process.pwd()
+        if (process.ENV.GIT_author_NAME === '' || process.ENV.GIT_author_EMAIL === '') {
+          throw new Error('Author name and email must be set before committing.')
+        }
+
+        rootPath = args[0] || process.pwd()
         gitPath = path.join(rootPath, '.git')
         dbPath = path.join(gitPath, 'objects')
 
@@ -660,10 +668,21 @@ async function jit (args) {
 
         process.stdout(`[(root-commit) ${commitObj.oid}] ${message.split('\n').slice(0, 1)}`)
       } catch (err) {
-        setStatus(err)
+        throw err
       }
 
       break
+
+    case 'author':
+     const name = args.shift()
+     const email = args.shift()
+
+     process.ENV.GIT_author_NAME = name
+     process.ENV.GIT_author_EMAIL = email
+
+     setStatus(`Set author to ${name} <${email}>`)
+
+     break
 
     default:
       throw new Error(`${command} is not a Jit command`)
@@ -1050,17 +1069,17 @@ async function runTests () {
     await test('Database.store', async function dbStore () {
       const dbPath = path.join(Android.homeFolder(), 'gitui-test')
       const object = blob('hello world')
-        const db = database(dbPath)
+      const db = database(dbPath)
 
-        const oid = (await db.store(object))
+      const oid = (await db.store(object))
 
-        object.oid = oid
+      object.oid = oid
 
-        setStatus(object.oid)
+      setStatus(object.oid)
 
-        const result = await fs.promises.exists(path.join(dbPath, oid.substring(0, 2)))
+      const result = await fs.promises.exists(path.join(dbPath, '.git', 'objects', oid.substring(0, 2)))
 
-        return result
+      return result
     })
 
     test('Blob test', function testBlob () {
@@ -1113,6 +1132,31 @@ async function runTests () {
 
       return data === inflated
     })
+
+    test('jit author', function testSetAuthor () {
+      jit('author', 'Tom', 'l3l_aze')
+
+      return (process.ENV.GIT_author_NAME === 'Tom' && process.ENV.GIT_author_EMAIL === 'l3l_aze')
+    })
+
+    await test('jit init', async function testInit () {
+      try {
+        const repoPath = path.join(Android.homeFolder(), 'gitui-test')
+        await jit('init', repoPath)
+
+        return (await fs.promises.exists(path.join(repoPath, '.git')))
+      } catch (err) {
+        setStatus(err)
+      }
+    })
+
+    await test.skip('jit commit', async function testCommit () {
+      try {
+        jit('commit', )
+      } catch (err) {
+      }
+    })
+
   })
 
   return tests
