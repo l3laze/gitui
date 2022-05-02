@@ -328,9 +328,9 @@ const fs = {
       }
     },
 
-    rmdir: async function rmdir (path) {
+    rimraf: async function rimraf (path) {
       if (Android.havePermission()) {
-        await Android.rmdir(path)
+        await Android.rimraf(path)
       }
     },
 
@@ -459,38 +459,30 @@ function database (p) {
   }
 
   async function writeObject (oid, content) {
-    try {
-      const dir = path.join(pathname, oid.substring(0, 2))
-      const objectPath = path.join(dir, oid.substring(2))
-      const tempPath = path.join(dir, generateTempName())
-      const exists = await fs.promises.exists(dir)
+    const dir = path.join(pathname, oid.substring(0, 2))
+    const objectPath = path.join(dir, oid.substring(2))
+    const tempPath = path.join(dir, generateTempName())
+    const exists = await fs.promises.exists(dir)
 
-      if (!exists) {
-        await fs.promises.mkdir(dir)
-      }
-
-      const compressed = await zlib.deflate(content)
-
-      await fs.promises.writeFile(tempPath, compressed)
-      await fs.promises.rename(tempPath, objectPath)
-      await fs.promises.delete(tempPath)
-    } catch (err) {
-      throw err
+    if (!exists) {
+      await fs.promises.mkdirp(dir)
     }
+
+    const compressed = await zlib.deflate(content)
+
+    await fs.promises.writeFile(tempPath, compressed)
+    await fs.promises.rename(tempPath, objectPath)
+    await fs.promises.delete(tempPath)
   }
 
   async function store (object) {
-    try {
-      const string = object.toString()
-      const content = `${object.type} ${string.length}\0${string}`
-      const oid = Android.sha1Hex(content)
+    const string = object.toString()
+    const content = `${object.type} ${string.length}\0${string}`
+    const oid = Android.sha1Hex(content)
 
-      await writeObject(oid, content)
+    await writeObject(oid, content)
 
-      return oid
-    } catch (err) {
-      throw err
-    }
+    return oid
   }
 
   return {
@@ -500,7 +492,7 @@ function database (p) {
   }
 }
 
-const blob = function blob (d) {
+function blob (d) {
   const data = d
   const type = 'blob'
 
@@ -514,14 +506,14 @@ const blob = function blob (d) {
   }
 }
 
-const entry = function entry (name, oid) {
+function entry (name, oid) {
   return {
     name,
     oid
   }
 }
 
-function tree (...e) {
+function tree (e) {
   const entries = e
   const MODE = '100644'
 
@@ -529,7 +521,9 @@ function tree (...e) {
 
   // https://stackoverflow.com/a/33920309/7665043
   function stringToHex (s) {
-    return s.split('').map(function (c) {
+    const arr = [...s]
+
+    return arr.map(function (c) {
       return ('0' + c.charCodeAt(0).toString(16))
         .slice(-2)
     }).join('')
@@ -552,28 +546,23 @@ function tree (...e) {
     return ascii
   }
 
-  function packArray (data, oid) {
-    return data + '\0' + stringToHex(oid)
-  }
-
   function toString () {
     return entries.sort()
-      .map((e) => packArray(`${MODE} ${e.name}`, e.oid))
+      .map((e) => `${MODE} ${e.name}\0${stringToHex(e.oid)}`)
       .join('')
   }
 
   return {
     type,
-    packArray,
     toString
   }
 }
 
-function author (name, email, time) {
+function authorObject (name, email, time) {
   return `${name} <${email}> ${time}`
 }
 
-const commit = function commit (t, a, m) {
+function commitObject (t, a, m) {
   const tree = t
   const author = a
   const message = m
@@ -598,99 +587,78 @@ const commit = function commit (t, a, m) {
   }
 }
 
-// eslint-disable-next-line no-unused-vars
-async function jit (...args) {
-  const command = args.shift()
+function jit (repoPath) {
+  const workspacePath = path.absolute(repoPath)
 
-  let argPath, rootPath, gitPath, dbPath,
-    workspaceObj, databaseObj,
-    entries, data, blobObj, treeObj, commitObj,
-    name, email, authorObj, message, dir
+  const config = {
+    author: {
+      name: '',
+      email: ''
+    }
+  }
 
-  switch (command) {
-    case 'init':
-      try {
-        argPath = args[0] || process.pwd()
-        rootPath = path.absolute(argPath)
-        gitPath = path.join(rootPath, '.git')
+  async function init () {
+    for (const dir of ['objects', 'refs']) {
+      await fs.promises.mkdirp(path.join(workspacePath, '.git', dir))
+    }
 
-        for (const dir of ['objects', 'refs']) {
-          try {
-            await fs.promises.mkdirp(path.join(gitPath, dir))
-          } catch (error) {
-            process.stderr(error)
-          }
-        }
+    process.stdout(`Initialized empty Jit repository in ${workspacePath}`)
+  }
 
-        process.stdout(`Initialized empty Jit repository in ${rootPath}`)
-      } catch (err) {
-        setStatus(err)
-      }
+  async function commit (message) {
+    if (config.author.name === '' || config.author.email === '') {
+      throw new Error('Author name and email must be set before committing.')
+    }
 
-      break
+    const gitPath = path.join(workspacePath, '.git')
+    const dbPath = path.join(gitPath, 'objects')
 
-    case 'commit':
-      try {
-        if (process.ENV.GIT_author_NAME === '' || process.ENV.GIT_author_EMAIL === '') {
-          throw new Error('Author name and email must be set before committing.')
-        }
+    const workspaceObj = workspace(workspacePath)
+    const databaseObj = database(dbPath)
 
-        rootPath = args[0] || process.pwd()
-        gitPath = path.join(rootPath, '.git')
-        dbPath = path.join(gitPath, 'objects')
+    const entries = await workspaceObj.listFiles()
 
-        workspaceObj = workspace(rootPath)
-        databaseObj = database(dbPath)
+    for (let i = 0; i < entries.length; i++) {
+      const data = await workspaceObj.readFile(entries[i])
+      const blobObj = blob(data)
+      blobObj.oid = await databaseObj.store(blobObj)
 
-        entries = await workspaceObj.listFiles()
+      entries[i] = entry(entries[i], blobObj.oid)
+    }
 
-        for (let i = 0; i < entries.length; i++) {
-          dir = entries[i]
-          data = await workspaceObj.read_file(dir)
-          blobObj = blob(data)
-          await databaseObj.store(blobObj)
+    const treeObj = tree(entries)
+    treeObj.oid = await databaseObj.store(treeObj)
 
-          entries[i] = entry(dir, blobObj.oid)
-        }
+    const authorObj = authorObject(config.author.name, config.author.email, new Date())
+    const commitObj = commitObject(treeObj.oid, authorObj, message)
 
-        treeObj = tree(entries)
-        await databaseObj.store(treeObj)
+    const commitOid = await databaseObj.store(commitObj)
 
-        name = process.ENV.GIT_author_NAME
-        email = process.ENV.GIT_author_EMAIL
-        authorObj = author(name, email, new Date())
-        message = args[1]
-        commitObj = commit(treeObj.oid, authorObj, message)
+    await fs.promises.writeFile(path.join(gitPath, 'HEAD'), commitOid)
 
-        await databaseObj.store(commitObj)
+    process.stdout(`[(root-commit) ${commitOid}] ${message.split('\n').slice(0, 1)}`)
+  }
 
-        await fs.promises.writeFile(path.join(gitPath, 'HEAD'), commitObj.oid)
+  function setAuthor (to) {
+    to = to.split(' @ ')
+    config.author.name = to[0]
+    config.author.email = to[1]
+  }
 
-        process.stdout(`[(root-commit) ${commitObj.oid}] ${message.split('\n').slice(0, 1)}`)
-      } catch (err) {
-        throw err
-      }
-
-      break
-
-    case 'author':
-     const name = args.shift()
-     const email = args.shift()
-
-     process.ENV.GIT_author_NAME = name
-     process.ENV.GIT_author_EMAIL = email
-
-     setStatus(`Set author to ${name} <${email}>`)
-
-     break
-
-    default:
-      throw new Error(`${command} is not a Jit command`)
+  return {
+    config,
+    setAuthor,
+    init,
+    commit
   }
 }
 
 /*
+ *
+ *
  * Testing
+ *
+ *
  */
 
 async function runTests () {
@@ -902,7 +870,7 @@ async function runTests () {
       await fs.promises.mkdir(Android.homeFolder() + '/.gitui-test-dir')
       await fs.promises.rename(Android.homeFolder() + '/.gitui-test-dir', Android.homeFolder() + '/.gitui-test-folder')
       const result = await fs.promises.exists(Android.homeFolder() + '/.gitui-test-folder')
-      await fs.promises.rmdir(Android.homeFolder() + '/.gitui-test-folder')
+      await fs.promises.rimraf(Android.homeFolder() + '/.gitui-test-folder')
 
       return result
     })
@@ -923,7 +891,7 @@ async function runTests () {
       await fs.promises.mkdir(Android.homeFolder() + '/.gitui-test-dir')
       await fs.promises.writeFile(Android.homeFolder() + '/.gitui-test-dir/.gitui-test-file.txt', 'Hello, world!')
       const result = await fs.promises.exists(Android.homeFolder() + '/.gitui-test-dir/.gitui-test-file.txt')
-      await fs.promises.rmdir(Android.homeFolder() + '/.gitui-test-dir')
+      await fs.promises.rimraf(Android.homeFolder() + '/.gitui-test-dir')
 
       return result
     })
@@ -933,7 +901,7 @@ async function runTests () {
       await fs.promises.writeFile(Android.homeFolder() + '/.gitui-test-dir/.gitui-test-file1.txt', '')
       await fs.promises.writeFile(Android.homeFolder() + '/.gitui-test-dir/.gitui-test-file2.txt', '')
       const result = (await fs.promises.readdir(Android.homeFolder() + '/.gitui-test-dir'))
-      await fs.promises.rmdir(Android.homeFolder() + '/.gitui-test-dir')
+      await fs.promises.rimraf(Android.homeFolder() + '/.gitui-test-dir')
 
       if (result.error) {
         throw new Error(result.error)
@@ -957,7 +925,7 @@ async function runTests () {
       await fs.promises.writeFile(Android.homeFolder() + '/.gitui-test-dir/.gitui-test-file1.txt', '')
       const resultStat = (await fs.promises.stat(Android.homeFolder() + '/.gitui-test-dir'))
 
-      await fs.promises.rmdir(Android.homeFolder() + '/.gitui-test-dir')
+      await fs.promises.rimraf(Android.homeFolder() + '/.gitui-test-dir')
 
       if (resultStat.error) {
         throw new Error(resultStat.error)
@@ -1023,7 +991,11 @@ async function runTests () {
   })
 
   /*
+   *
+   *
    * Git/jit
+   *
+   *
    */
 
   await test.title('Git/Jit', async function () {
@@ -1075,11 +1047,7 @@ async function runTests () {
 
       object.oid = oid
 
-      setStatus(object.oid)
-
-      const result = await fs.promises.exists(path.join(dbPath, '.git', 'objects', oid.substring(0, 2)))
-
-      return result
+      return (await fs.promises.exists(path.join(dbPath, '.git', 'objects', oid.substring(0, 2), oid.substring(2))))
     })
 
     test('Blob test', function testBlob () {
@@ -1097,7 +1065,7 @@ async function runTests () {
 
     test('Tree test', function testTree () {
       const e = entry('hello', 'world')
-      const t = tree(e)
+      const t = tree([e])
 
       // hello\0776f726c64 as a contiguous string was crashing the script. Lol.
       return (t.toString() === '100644 hello\0' + '776f726c64' && t.type === 'tree')
@@ -1105,58 +1073,49 @@ async function runTests () {
 
     test('author returns formatted string', function testAuthor () {
       const now = new Date()
-      const auth = author('Tom', 't@b.c', now)
+      const auth = authorObject('Tom', 't@b.c', now)
 
       return auth === `Tom <t@b.c> ${now}`
     })
 
     await test('zlib deflate, inflate', async function () {
       const data = 'hello world'
-      let inflated, deflated
 
-      try {
-        deflated = await Android.zlibDeflate(data)
-      } catch (err) {
-        setStatus('Error testing zlib.deflate\n' + err.toString())
-
-        throw err
-      }
-
-      try {
-        inflated = await Android.zlibInflate(deflated)
-      } catch (err) {
-        setStatus('Error testing zlib.inflate\n' + err.toString())
-
-        throw err
-      }
+      const deflated = await Android.zlibDeflate(data)
+      const inflated = await Android.zlibInflate(deflated)
 
       return data === inflated
     })
 
     test('jit author', function testSetAuthor () {
-      jit('author', 'Tom', 'l3l_aze')
+      const repoPath = path.join(Android.homeFolder(), 'gitui-test')
 
-      return (process.ENV.GIT_author_NAME === 'Tom' && process.ENV.GIT_author_EMAIL === 'l3l_aze')
+      const jitObj = jit(repoPath)
+
+      jitObj.setAuthor('Tom @ l3l_aze')
+
+      return jitObj.config.author.name === 'Tom' &&
+        jitObj.config.author.email === 'l3l_aze'
     })
 
     await test('jit init', async function testInit () {
-      try {
-        const repoPath = path.join(Android.homeFolder(), 'gitui-test')
-        await jit('init', repoPath)
+      const repoPath = path.join(Android.homeFolder(), 'gitui-test')
+      await jit(repoPath).init()
 
-        return (await fs.promises.exists(path.join(repoPath, '.git')))
-      } catch (err) {
-        setStatus(err)
-      }
+      return (await fs.promises.exists(path.join(repoPath, '.git')))
     })
 
-    await test.skip('jit commit', async function testCommit () {
-      try {
-        jit('commit', )
-      } catch (err) {
-      }
+    await test('jit commit', async function testCommit () {
+      const repoPath = path.join(Android.homeFolder(), 'gitui-test')
+
+      const jitObj = await jit(repoPath)
+      jitObj.setAuthor('Tom @ l3l_aze')
+      await jitObj.commit('Testing...')
+
+      return (await fs.promises.exists(path.join(repoPath, '.git', 'HEAD')))
     })
 
+    await fs.promises.rimraf(path.join(Android.homeFolder(), 'gitui-test'))
   })
 
   return tests
@@ -1208,7 +1167,14 @@ function testReport (tests) {
     }
 
     if (typeof t.error !== 'undefined') {
-      lines.push(`Thrown - ${t.error}`)
+      lines.push(`  Thrown - ${t.error}\n${
+        t.error.stack/*.split('\n')
+          .slice(1)
+          .map((s) => '  ' + s.substring(0, s.indexOf('(')) +
+            '(in ...' +
+            s.substring(s.lastIndexOf('/')))
+            .join('\n') + '\n'*/
+      }`)
     }
   }
 

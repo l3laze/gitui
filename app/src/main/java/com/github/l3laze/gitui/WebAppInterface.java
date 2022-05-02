@@ -224,14 +224,20 @@ public class WebAppInterface {
   }
 
   @JavascriptInterface
-  public static void rmdir(String path) {
+  public static void rimraf(String path) {
     File dir = new File(path);
 
     if (dir.isDirectory()) {
       String[] children = dir.list();
 
       for (int i = 0; i < children.length; i++) {
-        new File(dir, children[i]).delete();
+        File f = new File(dir, children[i]);
+
+        if (f.isDirectory()) {
+          rimraf(f.toString());
+        } else {
+          f.delete();
+        }
       }
 
       dir.delete();
