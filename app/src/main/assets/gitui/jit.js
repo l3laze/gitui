@@ -1167,13 +1167,16 @@ function testReport (tests) {
     }
 
     if (typeof t.error !== 'undefined') {
-      lines.push(`  Thrown - ${t.error}\n${
-        t.error.stack/*.split('\n')
-          .slice(1)
-          .map((s) => '  ' + s.substring(0, s.indexOf('(')) +
-            '(in ...' +
-            s.substring(s.lastIndexOf('/')))
-            .join('\n') + '\n'*/
+      lines.push(`    Thrown -${
+        t.error.stack.split('\n')
+          .map((s, i) => (i > 0 &&
+            s.indexOf('(') > -1
+            ? '  ' + s.substring(0, s.indexOf(' (') + 1) +
+              'in ...' +
+              s.substring(s.lastIndexOf('/'),
+                s.lastIndexOf(')'))
+            : '  ' + s)
+          ).join ('\n')
       }`)
     }
   }
