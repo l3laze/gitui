@@ -350,7 +350,7 @@ public class WebAppInterface {
     try {
       byte[] in = input.getBytes("UTF-8");
       byte result[] = new byte[in.length * 4];
-      Deflater d = new Deflater(java.util.zip.Deflater.BEST_SPEED);
+      Deflater d = new Deflater(Deflater.BEST_SPEED);
 
       d.setInput(in);
       d.finish();

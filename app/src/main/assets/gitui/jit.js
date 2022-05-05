@@ -398,10 +398,6 @@ const process = {
 
   stdout: (message) => {
     setStatus(message)
-  },
-  ENV: {
-    GIT_author_NAME: '',
-    GIT_author_EMAIL: ''
   }
 }
 
@@ -1121,6 +1117,13 @@ async function runTests () {
   return tests
 }
 
+function errorReport (test) {
+  return `  ${
+    test.error.stack.split('\n')
+      .map((s, i) => '  ' + s).join('\n')
+  }`
+}
+
 function testReport (tests) {
   const check = '+'
   const cross = 'x'
@@ -1167,17 +1170,7 @@ function testReport (tests) {
     }
 
     if (typeof t.error !== 'undefined') {
-      lines.push(`    Thrown -${
-        t.error.stack.split('\n')
-          .map((s, i) => (i > 0 &&
-            s.indexOf('(') > -1
-            ? '  ' + s.substring(0, s.indexOf(' (') + 1) +
-              'in ...' +
-              s.substring(s.lastIndexOf('/'),
-                s.lastIndexOf(')'))
-            : '  ' + s)
-          ).join ('\n')
-      }`)
+      lines.push(errorReport(t))
     }
   }
 
