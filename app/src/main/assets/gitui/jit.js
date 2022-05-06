@@ -1117,18 +1117,52 @@ async function runTests () {
   return tests
 }
 
+function testReport (t) {
+  const check = '+'
+  const cross = 'x'
+  const dash = '-'
+
+  const result = {
+    text: '',
+    skipped: 0,
+    total: 0,
+    passed: 0,
+    optional: 0
+  }
+
+  if (t.skip) {
+    result.text = (dash + ' ' + t.name)
+
+    result.skipped++
+  } else if (t.result || (!t.result && t.flags.fails)) {
+    result.text = (check + ' ' + t.name)
+
+    result.passed++
+    result.total++
+  } else {
+    result.text = (cross + ' ' + t.name)
+
+    if (t.flags.optional) {
+      result.optional++
+    } else {
+      result.total++
+    }
+  }
+
+  return result
+}
+
 function errorReport (test) {
-  return `  ${
+  return `${
     test.error.stack.split('\n')
       .map((s, i) => '  ' + s).join('\n')
   }`
 }
 
-function testReport (tests) {
+function reporter (tests) {
   const check = '+'
   const cross = 'x'
   const dash = '-'
-
   const lines = []
 
   let skipped = 0
@@ -1137,6 +1171,7 @@ function testReport (tests) {
   let optional = 0
   let nested = false
   let nextLine = ''
+  let result
 
   for (const t of tests) {
     if (typeof t.title !== 'undefined') {
@@ -1149,28 +1184,18 @@ function testReport (tests) {
         nextLine = '  '
       }
 
-      if (t.skip) {
-        lines.push(nextLine + dash + ' ' + t.name)
+      result = testReport(t)
 
-        skipped++
-      } else if (t.result || (!t.result && t.flags.fails)) {
-        lines.push(nextLine + check + ' ' + t.name)
+      lines.push(nextLine + result.text)
 
-        passed++
-        total++
-      } else {
-        lines.push(nextLine + cross + ' ' + t.name)
-
-        if (t.flags.optional) {
-          optional++
-        } else {
-          total++
-        }
-      }
+      skipped += result.skipped
+      total += result.total
+      passed += result.passed
+      optional += result.optional
     }
 
     if (typeof t.error !== 'undefined') {
-      lines.push(errorReport(t))
+      lines.push(nextLine + errorReport(t))
     }
   }
 
@@ -1193,19 +1218,15 @@ function testReport (tests) {
   return lines.join('\n')
 }
 
-async function selfTest () {
-  const tests = await runTests()
-  const message = testReport(tests)
-
-  // document.getElementById('status').value = ''
-  setStatus(message)
-}
-
-window.onload = function startUp () {
+window.onload = async function startUp () {
   setStatus(window.location)
   // setStatus('Storage permission? ' + Android.havePermission())
 
   if (window.location.search === '?test') {
-    selfTest()
+    const tests = await runTests()
+    const message = reporter(tests)
+
+    // document.getElementById('status').value = ''
+    setStatus(message)
   }
 }
