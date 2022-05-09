@@ -447,7 +447,7 @@ function database (p) {
   // const sha1 = require('./sha1.js')
   // const zlib = require('./zlib.js')
 
-  const pathname = path.join(p, '.git', 'objects')
+  const pathname = path.join(p, 'objects')
 
   function generateTempName () {
     // https://stackoverflow.com/a/12502559/7665043
@@ -458,17 +458,19 @@ function database (p) {
     const dir = path.join(pathname, oid.substring(0, 2))
     const objectPath = path.join(dir, oid.substring(2))
     const tempPath = path.join(dir, generateTempName())
-    const exists = await fs.promises.exists(dir)
+    const subdirExists = await fs.promises.exists(dir)
 
-    if (!exists) {
-      await fs.promises.mkdirp(dir)
+    if (!await fs.promises.exists(objectPath)) {
+      if (!subdirExists) {
+        await fs.promises.mkdirp(dir)
+      }
+
+      const compressed = await zlib.deflate(content)
+
+      await fs.promises.writeFile(tempPath, compressed)
+      await fs.promises.rename(tempPath, objectPath)
+      await fs.promises.delete(tempPath)
     }
-
-    const compressed = await zlib.deflate(content)
-
-    await fs.promises.writeFile(tempPath, compressed)
-    await fs.promises.rename(tempPath, objectPath)
-    await fs.promises.delete(tempPath)
   }
 
   async function store (object) {
@@ -558,7 +560,8 @@ function authorObject (name, email, time) {
   return `${name} <${email}> ${time}`
 }
 
-function commitObject (t, a, m) {
+function commitObject (p, t, a, m) {
+  const parent = p
   const tree = t
   const author = a
   const message = m
@@ -574,6 +577,10 @@ function commitObject (t, a, m) {
       message
     ]
 
+    if (parent !== '') {
+      lines.splice(1, 0, parent)
+    }
+
     return lines.join('\n')
   }
 
@@ -583,8 +590,35 @@ function commitObject (t, a, m) {
   }
 }
 
+function refs (pathname) {
+  const headPath = path.join(pathname, 'HEAD')
+
+  async function updateHead (oid) {
+    await fs.promises.writeFile(headPath, oid)
+  }
+
+  async function readHead () {
+    if (await fs.promises.exists(headPath)) {
+      return await fs.promises.readFile(headPath)
+    } else {
+      return ''
+    }
+  }
+
+  return {
+    headPath,
+    updateHead,
+    readHead
+  }
+}
+
 function jit (repoPath) {
   const workspacePath = path.absolute(repoPath)
+  const gitPath = path.join(workspacePath, '.git')
+
+  const workspaceObj = workspace(workspacePath)
+  const databaseObj = database(gitPath)
+  const refsObj = refs(gitPath)
 
   const config = {
     author: {
@@ -606,12 +640,6 @@ function jit (repoPath) {
       throw new Error('Author name and email must be set before committing.')
     }
 
-    const gitPath = path.join(workspacePath, '.git')
-    const dbPath = path.join(gitPath, 'objects')
-
-    const workspaceObj = workspace(workspacePath)
-    const databaseObj = database(dbPath)
-
     const entries = await workspaceObj.listFiles()
 
     for (let i = 0; i < entries.length; i++) {
@@ -622,17 +650,21 @@ function jit (repoPath) {
       entries[i] = entry(entries[i], blobObj.oid)
     }
 
+    const parent = await refsObj.readHead()
+
     const treeObj = tree(entries)
     treeObj.oid = await databaseObj.store(treeObj)
 
     const authorObj = authorObject(config.author.name, config.author.email, new Date())
-    const commitObj = commitObject(treeObj.oid, authorObj, message)
+    const commitObj = commitObject(parent, treeObj.oid, authorObj, message)
 
     const commitOid = await databaseObj.store(commitObj)
 
-    await fs.promises.writeFile(path.join(gitPath, 'HEAD'), commitOid)
+    await refsObj.updateHead(commitOid)
 
-    process.stdout(`[(root-commit) ${commitOid}] ${message.split('\n').slice(0, 1)}`)
+    const isRoot = (parent === '' ? '(root-commit) ' : '')
+
+    process.stdout(`[${isRoot}${commitOid}] ${message.split('\n').slice(0, 1)}`)
   }
 
   function setAuthor (to) {
@@ -642,10 +674,11 @@ function jit (repoPath) {
   }
 
   return {
+    refs: refsObj,
     config,
-    setAuthor,
     init,
-    commit
+    commit,
+    setAuthor,
   }
 }
 
@@ -1035,15 +1068,13 @@ async function runTests () {
     })
 
     await test('Database.store', async function dbStore () {
-      const dbPath = path.join(Android.homeFolder(), 'gitui-test')
+      const gitPath = path.join(Android.homeFolder(), 'gitui-test', '.git')
       const object = blob('hello world')
-      const db = database(dbPath)
+      const db = database(gitPath)
 
-      const oid = (await db.store(object))
+      object.oid = (await db.store(object))
 
-      object.oid = oid
-
-      return (await fs.promises.exists(path.join(dbPath, '.git', 'objects', oid.substring(0, 2), oid.substring(2))))
+      return (await fs.promises.exists(path.join(gitPath, 'objects', object.oid.substring(0, 2), object.oid.substring(2))))
     })
 
     test('Blob test', function testBlob () {
@@ -1101,7 +1132,7 @@ async function runTests () {
       return (await fs.promises.exists(path.join(repoPath, '.git')))
     })
 
-    await test('jit commit', async function testCommit () {
+    await test('jit root-commit', async function testCommit () {
       const repoPath = path.join(Android.homeFolder(), 'gitui-test')
 
       const jitObj = await jit(repoPath)
@@ -1109,6 +1140,20 @@ async function runTests () {
       await jitObj.commit('Testing...')
 
       return (await fs.promises.exists(path.join(repoPath, '.git', 'HEAD')))
+    })
+
+    await test('jit 2nd+ commit', async function testCommit2 () {
+      const repoPath = path.join(Android.homeFolder(), 'gitui-test')
+
+      const jitObj = await jit(repoPath)
+      jitObj.setAuthor('Tom @ l3l_aze')
+
+      const oldHead = await jitObj.refs.readHead()
+
+      await fs.promises.writeFile(path.join(repoPath, 'hello.txt'), 'hai!')
+      await jitObj.commit('Still testing...')
+
+      return (oldHead !== await jitObj.refs.readHead())
     })
 
     await fs.promises.rimraf(path.join(Android.homeFolder(), 'gitui-test'))
