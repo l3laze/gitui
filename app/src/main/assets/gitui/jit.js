@@ -430,10 +430,21 @@ function workspace (p) {
   const IGNORE = ['.', '..', '.git']
   const pathname = p
 
-  async function listFiles () {
-    const list = await fs.promises.readdir(pathname)
+  async function listFiles (p = pathname) {
+    const listing = await fs.promises.readdir(p)
 
-    return list.split(',').filter((e) => IGNORE.indexOf(e) === -1)
+    let list = []
+    let e
+
+    for (const f of listing.split(',')) {
+      if (Android.isDir(e)) {
+        list = list.concat(await listFiles(f))
+      } else {
+        list.push(f)
+      }
+    }
+
+    return list.filter((e) => IGNORE.indexOf(e) === -1)
   }
 
   return {
@@ -504,16 +515,30 @@ function blob (d) {
   }
 }
 
-function entry (name, oid) {
+function entry (n, o, s) {
+  const name = n
+  const oid = o
+  const stats = s
+
+  const EXECUTABLE_MODE = '100755'
+  const REGULAR_MODE = '100660' // Normally 100644
+
+  function mode () {
+    return (stats.mode & parseInt('1', 2)) !== 0
+      ? EXECUTABLE_MODE
+      : REGULAR_MODE
+  }
+
   return {
     name,
-    oid
+    oid,
+    stats,
+    mode
   }
 }
 
 function tree (e) {
   const entries = e
-  const MODE = '100644'
 
   const type = 'tree'
 
@@ -546,7 +571,7 @@ function tree (e) {
 
   function toString () {
     return entries.sort()
-      .map((e) => `${MODE} ${e.name}\0${stringToHex(e.oid)}`)
+      .map((e) => `${e.mode()} ${e.name}\0${stringToHex(e.oid)}`)
       .join('')
   }
 
@@ -647,7 +672,9 @@ function jit (repoPath) {
       const blobObj = blob(data)
       blobObj.oid = await databaseObj.store(blobObj)
 
-      entries[i] = entry(entries[i], blobObj.oid)
+      const stats = await fs.promises.stat(path.join(repoPath, entries[i]))
+
+      entries[i] = entry(entries[i], blobObj.oid, stats)
     }
 
     const parent = await refsObj.readHead()
@@ -1091,11 +1118,11 @@ async function runTests () {
     })
 
     test('Tree test', function testTree () {
-      const e = entry('hello', 'world')
+      const e = entry('hello', 'world', '{mode:33200}')
       const t = tree([e])
 
       // hello\0776f726c64 as a contiguous string was crashing the script. Lol.
-      return (t.toString() === '100644 hello\0' + '776f726c64' && t.type === 'tree')
+      return (t.toString() === '100660 hello\0' + '776f726c64' && t.type === 'tree')
     })
 
     test('author returns formatted string', function testAuthor () {
