@@ -6,6 +6,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.FileOutputStream;
 import java.io.RandomAccessFile;
+import java.io.FileNotFoundException;
 
 import java.util.zip.Deflater;
 import java.util.zip.Inflater;
@@ -14,6 +15,7 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.nio.file.Path;
 import java.nio.channels.FileLock;
+import java.nio.file.FileAlreadyExistsException;
 
 import java.security.MessageDigest;
 
@@ -418,17 +420,16 @@ public class WebAppInterface {
     try {
       Lockfile lockfile = new Lockfile(headPath);
 
-      if (lockfile.holdForUpdate() == false) {
-        return "{\"error\":\"Could not get lock on file " + headPath + ".\"}";
+      if (lockfile.holdForUpdate()) {
+        lockfile.write(oid);
+        lockfile.commit();
+        return "{}";
       }
 
-      lockfile.write(oid);
-      lockfile.commit();
-    } catch (Exception err) {
+      return "{\"error\":\"Could not get lock on file " + headPath + ".\"}";
+    } catch (IOException | SecurityException | FileAlreadyExistsException | FileNotFoundException | StaleLockException err) {
       return "{\"error\":\"" + err.getMessage() + "\"}";
     }
-
-    return "{}";
   }
 
   protected class Lockfile {
@@ -442,7 +443,7 @@ public class WebAppInterface {
       lockPath = file + ".lock";
     }
 
-    public boolean holdForUpdate () {
+    public boolean holdForUpdate () throws IOException {
       try {
         if (lock == null) {
           Path path = Files.createFile(Paths.get(lockPath));
@@ -452,17 +453,23 @@ public class WebAppInterface {
         }
 
         return true;
-      } catch (IOException err) {
+      } catch (SecurityException err) {
+        throw new SecurityException("Could not access: " + filePath);
+      } catch (FileNotFoundException err) {
+        throw new FileNotFoundException("Error opening file: " + filePath);
+      } catch (FileAlreadyExistsException err) {
         return false;
+      } catch (IOException err) {
+        throw new IOException("Missing parent directory: " + filePath);
       }
     }
 
-    public void write (String string) throws IOException, Exception {
+    public void write (String string) throws IOException, StaleLockException {
       raiseOnStaleLock();
       fos.write(string.getBytes());
     }
 
-    public void commit () throws Exception {
+    public void commit () throws IOException, StaleLockException {
       raiseOnStaleLock();
       fos.close();
       lock.close();
@@ -473,10 +480,28 @@ public class WebAppInterface {
       lock = null;
     }
 
-    public void raiseOnStaleLock () throws Exception {
+    public void raiseOnStaleLock () throws StaleLockException {
       if (lock == null) {
-        throw new Exception("Lock is stale.");
+        throw new StaleLockException("Not holding file lock: " + filePath);
       }
+    }
+  }
+
+  protected class StaleLockException extends Exception {
+    public StaleLockException () {
+
+    }
+
+    public StaleLockException (String message) {
+        super (message);
+    }
+
+    public StaleLockException (Throwable cause) {
+        super (cause);
+    }
+
+    public StaleLockException (String message, Throwable cause) {
+        super (message, cause);
     }
   }
 }
