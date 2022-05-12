@@ -619,7 +619,11 @@ function refs (pathname) {
   const headPath = path.join(pathname, 'HEAD')
 
   async function updateHead (oid) {
-    await fs.promises.writeFile(headPath, oid)
+    const result = JSON.parse(await Android.updateHead(headPath, oid))
+
+    if (typeof result.error !== 'undefined') {
+      throw new Error(result.error)
+    }
   }
 
   async function readHead () {

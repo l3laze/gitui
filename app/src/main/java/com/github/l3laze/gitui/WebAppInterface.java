@@ -5,12 +5,15 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.FileOutputStream;
+import java.io.RandomAccessFile;
 
 import java.util.zip.Deflater;
 import java.util.zip.Inflater;
 
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.nio.file.Path;
+import java.nio.channels.FileLock;
 
 import java.security.MessageDigest;
 
@@ -407,6 +410,73 @@ public class WebAppInterface {
       return bytesToHex(digestBytes);
     } catch (java.io.UnsupportedEncodingException | java.security.NoSuchAlgorithmException err) {
       return "{\"error\":\"" + err.toString() + "\"}";
+    }
+  }
+
+  @JavascriptInterface
+  public String updateHead (String headPath, String oid) {
+    try {
+      Lockfile lockfile = new Lockfile(headPath);
+
+      if (lockfile.holdForUpdate() == false) {
+        return "{\"error\":\"Could not get lock on file " + headPath + ".\"}";
+      }
+
+      lockfile.write(oid);
+      lockfile.commit();
+    } catch (Exception err) {
+      return "{\"error\":\"" + err.getMessage() + "\"}";
+    }
+
+    return "{}";
+  }
+
+  protected class Lockfile {
+    private String filePath;
+    private String lockPath;
+    private FileLock lock;
+    private FileOutputStream fos;
+
+    public Lockfile (String file) {
+      filePath = file;
+      lockPath = file + ".lock";
+    }
+
+    public boolean holdForUpdate () {
+      try {
+        if (lock == null) {
+          Path path = Files.createFile(Paths.get(lockPath));
+          RandomAccessFile raf = new RandomAccessFile(path.toString(), "rw");
+          lock = raf.getChannel().lock();
+          fos = new FileOutputStream(raf.getFD());
+        }
+
+        return true;
+      } catch (IOException err) {
+        return false;
+      }
+    }
+
+    public void write (String string) throws IOException, Exception {
+      raiseOnStaleLock();
+      fos.write(string.getBytes());
+    }
+
+    public void commit () throws Exception {
+      raiseOnStaleLock();
+      fos.close();
+      lock.close();
+      // lock.release();
+
+      new File(lockPath).renameTo(new File(filePath));
+
+      lock = null;
+    }
+
+    public void raiseOnStaleLock () throws Exception {
+      if (lock == null) {
+        throw new Exception("Lock is stale.");
+      }
     }
   }
 }
