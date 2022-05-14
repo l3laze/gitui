@@ -709,7 +709,7 @@ function jit (repoPath) {
     config,
     init,
     commit,
-    setAuthor,
+    setAuthor
   }
 }
 

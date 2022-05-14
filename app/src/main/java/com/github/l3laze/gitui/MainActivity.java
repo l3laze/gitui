@@ -8,7 +8,6 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
-import android.webkit.WebChromeClient;
 import android.content.Context;
 import android.content.ClipData;
 import android.content.ClipboardManager;
@@ -34,9 +33,7 @@ public class MainActivity extends Activity {
 
     webView = (WebView) findViewById(R.id.webapp);
     webView.setWebViewClient(new WebViewClient());
-    webView.setWebChromeClient(new WebChromeClient());
     webView.getSettings().setJavaScriptEnabled(true);
-    webView.getSettings().setDomStorageEnabled(true);
 
     webAppInterface = new WebAppInterface(this);
     webView.addJavascriptInterface(webAppInterface, "Android");
@@ -44,13 +41,6 @@ public class MainActivity extends Activity {
     instance = this;
 
     loadWebapp();
-  }
-
-  public void havePermission(int reqCode) {
-
-    if (reqCode == STORAGE_PERM_CODE) {
-      checkPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE, STORAGE_PERM_CODE);
-    }
   }
 
   public static MainActivity getInstance() {
@@ -101,7 +91,9 @@ public class MainActivity extends Activity {
 
     webView.loadUrl(url);
 
-    MainActivity.getInstance().havePermission(STORAGE_PERM_CODE);
+    
+
+    MainActivity.getInstance().checkPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE, STORAGE_PERM_CODE);
   }
 
   protected void copyTextToClipboard(String text) {
