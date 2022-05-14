@@ -49,7 +49,6 @@ public class MainActivity extends Activity {
 
   public void checkPermission(String permission, int reqCode) {
     if (ContextCompat.checkSelfPermission(MainActivity.this, permission) == PackageManager.PERMISSION_DENIED) {
-      // Requesting the permission 
       ActivityCompat.requestPermissions(MainActivity.this, new String[] {
         permission
       }, reqCode);
@@ -72,33 +71,39 @@ public class MainActivity extends Activity {
       if (grantResults.length > 0 &&
         grantResults[0] == PackageManager.PERMISSION_GRANTED) {
         Toast.makeText(MainActivity.this, "Storage Permission Granted", Toast.LENGTH_SHORT).show();
+
         savePermission(STORAGE_PERM_CODE, true);
       } else {
         Toast.makeText(MainActivity.this, "Storage Permission Denied", Toast.LENGTH_SHORT).show();
+
         savePermission(STORAGE_PERM_CODE, false);
       }
     }
   }
 
   public void loadWebapp() {
-    String externalBase = Environment.getExternalStorageDirectory().getAbsolutePath() + "/gitui";
-    java.io.File external = new java.io.File(externalBase + "/index.html");
-    String internal = "file:///android_asset/gitui/index.html";
     String url;
+    String internal = "file:///android_asset/gitui/index.html";
+    String externalBase = Environment.getExternalStorageDirectory().getAbsolutePath() + "/gitui";
 
-    if (external.exists() && external.canRead()) url = external.toString();
-    else url = internal;
+    java.io.File external = new java.io.File(externalBase + "/index.html");
+
+    if (external.exists() && external.canRead()) {
+      url = external.toString();
+    } else {
+      url = internal;
+    }
 
     webView.loadUrl(url);
-
-    
 
     MainActivity.getInstance().checkPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE, STORAGE_PERM_CODE);
   }
 
   protected void copyTextToClipboard(String text) {
     ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+
     ClipData clip = ClipData.newPlainText("copied text", text);
+
     clipboard.setPrimaryClip(clip);
   }
 }

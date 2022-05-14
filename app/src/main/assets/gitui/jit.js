@@ -43,7 +43,9 @@ pullToRefresh({
 function initCustomization () {
   if (Android.havePermission()) {
     const externalHome = Android.copyAssets('gitui')
+
     setStatus(externalHome)
+
     setTimeout(function () {
       window.location = externalHome + '/index.html'
     }, 1000)
@@ -151,6 +153,7 @@ function pushRepo (which) {
 // eslint-disable-next-line no-unused-vars
 function openModal (title) {
   const modal = document.getElementById('modal')
+
   const modes = [
     'settings',
     'add'
@@ -161,6 +164,7 @@ function openModal (title) {
       document.getElementById(m + 'Modal').style.display = 'none'
     } else {
       document.getElementById(m + 'Modal').style.display = 'block'
+
       modal['data-mode'] = m
     }
   }
@@ -181,6 +185,7 @@ function cancelModal () {
 // eslint-disable-next-line no-unused-vars
 function okModal () {
   const modal = document.getElementById('modal')
+
   modal.style.display = 'none'
 
   if (modal['data-mode'] === 'settings') {
@@ -340,50 +345,13 @@ const fs = {
         return result
       }
     }
-
-    /*
-      readlink: async function readlink (path) {
-        if (Android.havePermission()) {
-          const result = (await Android.readlink(path))
-
-          if (result.indexOf('"error') === 0) {
-            throw new Error(JSON.parse(result))
-          }
-
-          return JSON.parse(result)
-        }
-      },
-
-      lstat: async function lstat (path) {
-        if (Android.havePermission()) {
-          const stats = (await Android.lstat(path))
-
-          if (stats.indexOf('"error') === 0) {
-            throw new Error(JSON.parse(stats).error)
-          }
-
-          return JSON.parse(stats)
-        }
-      },
-
-      symlink: async function symlink (from, to) {
-        if (Android.havePermission()) {
-          const result = (await Android.createSymlink(from, to))
-
-          return JSON.parse(result)
-        }
-      }
-    */
   }
 }
 
 const path = {
   normalize: (p) => Android.normalize(p),
-
   relativize: (p) => Android.relativize(p),
-
   dirname: (p) => Android.dirname(p),
-
   absolute: (p) => Android.getAbsolutePath(p),
 
   join: (...args) => args.reduce((a, b) => a + '/' + b, '')
@@ -455,9 +423,6 @@ function workspace (p) {
 }
 
 function database (p) {
-  // const sha1 = require('./sha1.js')
-  // const zlib = require('./zlib.js')
-
   const pathname = path.join(p, 'objects')
 
   function generateTempName () {
@@ -469,6 +434,7 @@ function database (p) {
     const dir = path.join(pathname, oid.substring(0, 2))
     const objectPath = path.join(dir, oid.substring(2))
     const tempPath = path.join(dir, generateTempName())
+
     const subdirExists = await fs.promises.exists(dir)
 
     if (!await fs.promises.exists(objectPath)) {
@@ -789,6 +755,8 @@ async function runTests () {
     test.title(text, function () {})
   }
 
+  window.startTime = Date.now()
+
   /*
    * -------- Testing --------
    */
@@ -994,60 +962,7 @@ async function runTests () {
       return true
     })
 
-    await test.optional.skip('Can symlink', async function () {
-      await fs.promises.writeFile(Android.homeFolder() + '/.gitui-test-file.txt', 'Hello, world!')
-
-      const result = await fs.promises.symlink(Android.homeFolder() + '/.gitui-test-file.txt', Android.homeFolder() + '/.gitui-test-file-link')
-      await fs.promises.delete(Android.homeFolder() + '/.gitui-test-file.txt')
-
-      if (result.error) {
-        throw new Error(result.error)
-      }
-
-      return result
-    })
-
-    await test.optional.skip('Can lstat', async function () {
-      await fs.promises.writeFile(Android.homeFolder() + '/.gitui-test-file.txt', 'Hello, world!')
-
-      const resultLink = await fs.promises.symlink(Android.homeFolder() + '/.gitui-test-file.txt', Android.homeFolder() + '/.gitui-test-file-link')
-      if (resultLink.error) {
-        throw new Error(resultLink.error)
-      }
-
-      const resultFile = await fs.promises.lstat(Android.homeFolder() + '/.gitui-test-file.txt')
-      if (resultFile.error) {
-        throw new Error(resultFile.error)
-      }
-
-      const resultLinkStat = await fs.promises.lstat(Android.homeFolder() + '/.gitui-test-file-link')
-      if (resultLinkStat.error) {
-        throw new Error(resultLinkStat.error)
-      }
-
-      await fs.promises.delete(Android.homeFolder() + '/.gitui-test-file.txt')
-
-      return true
-    })
-
-    await test.optional.skip('Can readlink', async function () {
-      await fs.promises.writeFile(Android.homeFolder() + '/.gitui-test-file.txt', 'Hello, world!')
-      const resultLink = await fs.promises.symlink(Android.homeFolder() + '/.gitui-test-file.txt', Android.homeFolder() + '/.gitui-test-file-link')
-      if (resultLink.error) {
-        throw new Error(resultLink.error)
-      }
-
-      const result = await fs.promises.readlink(Android.homeFolder() + '/.gitui-test-file-link')
-      if (result.error) {
-        throw new Error(result.error)
-      }
-
-      await fs.promises.delete(Android.homeFolder() + '/.gitui-test-file.txt')
-
-      return true
-    })
-
-    await fs.promises.delete(Android.homeFolder() + '/.gitui-test-file.txt')
+    await fs.promises.rimraf(Android.homeFolder() + '/.gitui-test-dir')
   })
 
   /*
@@ -1245,21 +1160,15 @@ function reporter (tests) {
   let total = 0
   let passed = 0
   let optional = 0
-  let nested = false
   let nextLine = ''
   let result
 
   for (const t of tests) {
     if (typeof t.title !== 'undefined') {
-      nested = true
-
       lines.push('_'.repeat(t.title.length))
       lines.push(t.title)
+      nextLine = '  '
     } else {
-      if (nested) {
-        nextLine = '  '
-      }
-
       result = testReport(t)
 
       lines.push(nextLine + result.text)
@@ -1290,6 +1199,11 @@ function reporter (tests) {
   const percent = ('' + ((passed / total) * 100)).substring(0, 5)
 
   lines.push(`\n${percent}% required tests passed (${passed}/${total})`)
+
+  const elapsedMs = Date.now() - window.startTime
+  const elapsedTime = elapsedMs / 1000
+
+  lines.push('\nFinished in ' + elapsedTime + 's (' + elapsedMs + 'ms)')
 
   return lines.join('\n')
 }

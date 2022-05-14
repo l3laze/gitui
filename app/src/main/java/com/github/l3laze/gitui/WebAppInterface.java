@@ -31,7 +31,6 @@ public class WebAppInterface {
   protected static Context mContext;
   protected static AssetManager assetManager;
   protected static boolean storagePermission = false;
-  protected static boolean symlinkPermission = false;
 
   WebAppInterface(Context c) {
     setInterface(c.getApplicationContext());
@@ -146,17 +145,6 @@ public class WebAppInterface {
   }
 
   @JavascriptInterface
-  public static String lstat(String path) {
-    try {
-      return buildStats(android.system.Os.lstat(path));
-    } catch (ErrnoException ee) {
-      String name = android.system.OsConstants.errnoName(ee.errno);
-
-      return "{\"error (" + name + ")\": " + getExplanation(name, "lstat", path) + "\"}";
-    }
-  }
-
-  @JavascriptInterface
   public static String stat(String path) {
     try {
       return buildStats(android.system.Os.stat(path));
@@ -168,32 +156,6 @@ public class WebAppInterface {
   }
 
   @JavascriptInterface
-  public static String readlink(String path) {
-    try {
-      android.system.Os.readlink(path);
-    } catch (ErrnoException ee) {
-      String name = android.system.OsConstants.errnoName(ee.errno);
-
-      return "{\"error (" + name + ")\": " + getExplanation(name, "readlink", path) + "\"}";
-    }
-
-    return "true";
-  }
-
-  @JavascriptInterface
-  public static String createSymlink(String source, String target) {
-    try {
-      android.system.Os.symlink(source, target);
-    } catch (ErrnoException ee) {
-      String name = android.system.OsConstants.errnoName(ee.errno);
-
-      return "{\"error (" + name + ")\": " + getExplanation(name, "symlink", source + " OR " + target) + "\"}";
-    }
-
-    return "true";
-  }
-
-  @JavascriptInterface
   public static boolean isFile(String path) {
     return new File(path).isFile();
   }
@@ -201,11 +163,6 @@ public class WebAppInterface {
   @JavascriptInterface
   public static boolean isDir(String path) {
     return new File(path).isDirectory();
-  }
-
-  @JavascriptInterface
-  public static boolean isSymlink(String path) {
-    return Files.isSymbolicLink(Paths.get(path));
   }
 
   @JavascriptInterface
@@ -285,7 +242,7 @@ public class WebAppInterface {
 
     try {
       data = new String(Files.readAllBytes(Paths.get(path)));
-    } catch (Exception err) {
+    } catch (IOException err) {
       return "{\"error\":\"" + err.toString() + "\"}";
     }
 
@@ -308,6 +265,7 @@ public class WebAppInterface {
 
     try {
       targetFolder = new File(MainActivity.getInstance().webAppInterface.homeFolder());
+
       assetManager = mContext.getAssets();
       String sources[] = assetManager.list(path);
 
@@ -318,18 +276,20 @@ public class WebAppInterface {
         targetDir.mkdirs();
 
         for (String source: sources) {
-          String fullSourcePath = path.equals("") ? source : (path + File.separator + source);
+          String fullSourcePath = path.equals("")
+            ? source
+            : (path + File.separator + source);
           copyAssets(fullSourcePath);
         }
       }
 
       return targetFolder.toString() + "/gitui";
-    } catch (Exception err) {
+    } catch (IOException err) {
       return "{\"error\":\"" + err.toString() + "\"}";
     }
   }
 
-  private static String copyAssetFileToFolder(String fullAssetPath, File targetBasePath) throws Exception {
+  private static String copyAssetFileToFolder(String fullAssetPath, File targetBasePath) throws IOException {
     InputStream in = assetManager.open(fullAssetPath);
     File outFile = new File(targetBasePath, fullAssetPath);
     OutputStream out = new FileOutputStream(outFile);
@@ -365,7 +325,7 @@ public class WebAppInterface {
       String b64 = Base64.encodeToString(result, 0, resultLength, Base64.NO_WRAP);
 
       return b64;
-    } catch (Exception err) {
+    } catch (IOException err) {
       return "{\"error\":\"" + err.toString() + "\"}";
     }
   }
@@ -386,7 +346,7 @@ public class WebAppInterface {
       // String b64 = Base64.encodeToString(out.getBytes("UTF-8"), 0, out.length(), Base64.NO_WRAP);
 
       return out;
-    } catch (Exception err) {
+    } catch (IOException | java.util.zip.DataFormatException err) {
       return "{\"error\":\"" + err.toString() + "\"}";
     }
   }
@@ -447,7 +407,9 @@ public class WebAppInterface {
       try {
         if (lock == null) {
           Path path = Files.createFile(Paths.get(lockPath));
+
           RandomAccessFile raf = new RandomAccessFile(path.toString(), "rw");
+
           lock = raf.getChannel().lock();
           fos = new FileOutputStream(raf.getFD());
         }
