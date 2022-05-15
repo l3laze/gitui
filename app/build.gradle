@@ -17,6 +17,31 @@ android {
       proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
     }
   }
+
+  /*
+  task ('bundleJS') {
+    FileTree tree = fileTree('app/src/main/assets/js')
+      .include('*.js')
+
+    new File(’app/src/main/assets/js/map.js').withWriter{ map ->
+      new File(’app/src/main/assets/js/bundle.js').withWriter{ bundle ->
+        int mapLines = 0
+
+        tree.each { File file ->
+          int lines = new File(file).eachLine { line, lineNum ->
+            bundle << line << '\n'
+            return lineNum
+          }
+
+          map << '\"line' + mapLines + '\":{' +
+            '\"path\":\"' + file + '\",' +
+            '\"length\":' + lines + '\"}'
+
+          mapLines += lines
+        }
+      }
+    }
+  }*/
 }
 
 dependencies {
