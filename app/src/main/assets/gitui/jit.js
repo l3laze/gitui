@@ -358,8 +358,6 @@ const path = {
 }
 
 const process = {
-  pwd: () => Android.cwd(),
-
   stderr: (message) => {
     setStatus(message)
   },
@@ -1208,7 +1206,7 @@ function reporter (tests) {
   return lines.join('\n')
 }
 
-window.onload = async function startUp () {
+window.addEventListener('DOMContentLoaded', async function startUp () {
   setStatus(window.location)
   // setStatus('Storage permission? ' + Android.havePermission())
 
@@ -1219,4 +1217,4 @@ window.onload = async function startUp () {
     // document.getElementById('status').value = ''
     setStatus(message)
   }
-}
+})
