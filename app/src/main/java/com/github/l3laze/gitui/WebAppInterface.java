@@ -104,6 +104,11 @@ public class WebAppInterface {
     return new File(path).getParentFile().getAbsolutePath();
   }
 
+  @JavascriptInterface
+  public static String basename(String path) {
+    return new File(path).getName();
+  }
+
   public static String buildStats(StructStat stats) {
     StringBuilder sb = new StringBuilder();
     sb.append("{");

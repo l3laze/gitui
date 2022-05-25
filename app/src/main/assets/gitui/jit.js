@@ -260,111 +260,109 @@ function collapseStatus () {
 }
 
 /*
+ *
  * Native functionality
+ *
  */
 
 const fs = {
-  promises: {
-    exists: async function fileExists (path) {
-      if (Android.havePermission()) {
-        const result = await Android.fileExists(path)
-        return result
+  exists: async function fileExists (path) {
+    if (Android.havePermission()) {
+      const result = await Android.fileExists(path)
+      return result
+    }
+  },
+
+  readFile: async function readFile (path) {
+    if (Android.havePermission()) {
+      const result = await Android.readFile(path)
+
+      if (result.indexOf('"error') !== -1) {
+        throw new Error(JSON.parse(result).error)
       }
-    },
 
-    readFile: async function readFile (path) {
-      if (Android.havePermission()) {
-        const result = await Android.readFile(path)
-        return result
+      return result
+    }
+  },
+
+  writeFile: async function writeFile (path, data) {
+    if (Android.havePermission()) {
+      await Android.writeFile(path, data)
+    }
+  },
+
+  mkdir: async function mkdir (path) {
+    if (Android.havePermission()) {
+      await Android.makeDirectory(path)
+    }
+  },
+
+  mkdirp: async function mkdirp (path) {
+    if (Android.havePermission()) {
+      await Android.makeDirectoryTree(path)
+    }
+  },
+
+  rename: async function rename (from, to) {
+    if (Android.havePermission()) {
+      await Android.move(from, to)
+    }
+  },
+
+  stat: async function stat (path) {
+    if (Android.havePermission()) {
+      const result = await Android.stat(path)
+
+      if (result.indexOf('"error') !== -1) {
+        throw new Error(JSON.parse(result).error)
       }
-    },
 
-    writeFile: async function writeFile (path, data) {
-      if (Android.havePermission()) {
-        await Android.writeFile(path, data)
+      return JSON.parse(result)
+    }
+  },
+
+  readdir: async function readdir (path) {
+    if (Android.havePermission()) {
+      const result = await Android.readDir(path)
+
+      if (result.indexOf('"error') !== -1) {
+        throw new Error(JSON.parse(result).error)
       }
-    },
 
-    mkdir: async function mkdir (path) {
-      if (Android.havePermission()) {
-        await Android.makeDirectory(path)
-      }
-    },
+      return result.split(',')
+    }
+  },
 
-    mkdirp: async function mkdirp (path) {
-      if (Android.havePermission()) {
-        await Android.makeDirectoryTree(path)
-      }
-    },
+  delete: async function deletePath (path) {
+    if (Android.havePermission()) {
+      await Android.delete(path)
+    }
+  },
 
-    rename: async function rename (from, to) {
-      if (Android.havePermission()) {
-        await Android.move(from, to)
-      }
-    },
+  rimraf: async function rimraf (path) {
+    if (Android.havePermission()) {
+      await Android.rimraf(path)
+    }
+  },
 
-    stat: async function stat (path) {
-      if (Android.havePermission()) {
-        const result = await Android.stat(path)
-
-        if (result.indexOf('"error') !== -1) {
-          throw new Error(JSON.parse(result).error)
-        }
-
-        return JSON.parse(result)
-      }
-    },
-
-    readdir: async function readdir (path) {
-      if (Android.havePermission()) {
-        const result = await Android.readDir(path)
-
-        if (result.indexOf('"error') !== -1) {
-          throw new Error(JSON.parse(result).error)
-        }
-
-        return result
-      }
-    },
-
-    delete: async function deletePath (path) {
-      if (Android.havePermission()) {
-        await Android.delete(path)
-      }
-    },
-
-    rimraf: async function rimraf (path) {
-      if (Android.havePermission()) {
-        await Android.rimraf(path)
-      }
-    },
-
-    du: async function du (path) {
-      if (Android.havePermission()) {
-        const result = await Android.sizeOnDisk(path)
-        return result
-      }
+  du: async function du (path) {
+    if (Android.havePermission()) {
+      const result = await Android.sizeOnDisk(path)
+      return result
     }
   }
 }
 
 const path = {
   normalize: (p) => Android.normalize(p),
-  relativize: (p) => Android.relativize(p),
+  relativize: (from, to) => Android.relativize(from, to),
+
+  basename: (p) => Android.basename(p),
   dirname: (p) => Android.dirname(p),
-  absolute: (p) => Android.getAbsolutePath(p),
 
-  join: (...args) => args.reduce((a, b) => a + '/' + b, '')
-}
+  getAbsolutePath: (p) => Android.getAbsolutePath(p),
 
-const process = {
-  stderr: (message) => {
-    setStatus(message)
-  },
-
-  stdout: (message) => {
-    setStatus(message)
-  }
+  join: (...args) => args.slice(1).reduce((a, b) => a + '/' + b, args.slice(0, 1))
 }
 
 const zlib = {
@@ -388,35 +386,79 @@ const zlib = {
   }
 }
 
+const util = {
+  gitify: function gitify (header, object) {
+    const string = object.toString()
+
+    return `${header} ${string.length}\0${string}`
+  }
+}
+
 /*
+ *
  * Git functionality
+ *
  */
 
-function workspace (p) {
+function workspace (pathArg) {
   const IGNORE = ['.', '..', '.git']
-  const pathname = p
+  const pathname = pathArg
+  const base = path.basename(pathname)
 
-  async function listFiles (p = pathname) {
-    const listing = await fs.promises.readdir(p)
+  // setStatus(`base=${base}`)
+
+  async function listFiles (p) {
+    if (typeof p === 'undefined') {
+      p = pathname
+    }
+
+    const listing = (await fs.readdir(p))
+      .filter((e) => IGNORE.indexOf(e) === -1)
 
     let list = []
-    let e
+    let filePath
 
-    for (const f of listing.split(',')) {
-      if (Android.isDir(e)) {
-        list = list.concat(await listFiles(f))
-      } else {
-        list.push(f)
+    for (const f of listing) {
+      filePath = path.join(p, f)
+
+      list.push(filePath)
+
+      // setStatus(`filePath=${filePath}`)
+
+      if (await Android.isDir(filePath)) {
+        const nested = await listFiles(filePath)
+
+        for(let i = 0; i < nested.length; i++) {
+          list.push(nested[i])
+        }
       }
     }
 
-    return list.filter((e) => IGNORE.indexOf(e) === -1)
+    list = list.map((f) => {
+      // setStatus(`f=${f}`)
+
+      const baseIndex = f.indexOf(base)
+
+      if (baseIndex > -1) {
+        f = f.slice(baseIndex + base.length + 1)
+      }
+
+      // setStatus(`f=${f}`)
+
+      return f
+    })
+
+    // setStatus(`list=${list}`)
+
+    return list
   }
 
   return {
     pathname,
     listFiles,
-    readFile: fs.promises.readFile
+    readFile: async function readFile (f) {
+      return await fs.readFile(path.join(pathname, f))
+    }
   }
 }
 
@@ -433,29 +475,25 @@ function database (p) {
     const objectPath = path.join(dir, oid.substring(2))
     const tempPath = path.join(dir, generateTempName())
 
-    const subdirExists = await fs.promises.exists(dir)
-
-    if (!await fs.promises.exists(objectPath)) {
-      if (!subdirExists) {
-        await fs.promises.mkdirp(dir)
+    if (!await fs.exists(objectPath)) {
+      if (!await fs.exists(dir)) {
+        await fs.mkdirp(dir)
       }
 
       const compressed = await zlib.deflate(content)
 
-      await fs.promises.writeFile(tempPath, compressed)
-      await fs.promises.rename(tempPath, objectPath)
-      await fs.promises.delete(tempPath)
+      await fs.writeFile(tempPath, compressed)
+      await fs.rename(tempPath, objectPath)
+      await fs.delete(tempPath)
     }
   }
 
-  async function store (object) {
-    const string = object.toString()
-    const content = `${object.type} ${string.length}\0${string}`
-    const oid = Android.sha1Hex(content)
+  async function store (head, object) {
+    // setStatus(`store oid=${object.oid}`)
 
-    await writeObject(oid, content)
+    const content = util.gitify(head, object)
 
-    return oid
+    await writeObject(object.oid, content)
   }
 
   return {
@@ -475,7 +513,8 @@ function blob (d) {
 
   return {
     type,
-    toString
+    toString,
+    oid: undefined
   }
 }
 
@@ -493,18 +532,91 @@ function entry (n, o, s) {
       : REGULAR_MODE
   }
 
+  function parentDirs () {
+    const dir = this.name.split('/')
+      .slice(0, -1)
+      .join('/')
+
+    // setStatus(`name=${this.name} dir=${dir}`)
+
+    return dir
+  }
+
   return {
     name,
     oid,
     stats,
-    mode
+    mode,
+    parentDirs
   }
 }
 
 function tree (e) {
-  const entries = e
+  const entries = {}
 
   const type = 'tree'
+
+  const DIRECTORY_MODE = 40000
+
+  function build (ents) {
+    const entryKeys = Object.keys(ents)
+      .sort((a, b) => a.name < b.name)
+
+    // setStatus(`entryKeys=${JSON.stringify(entryKeys)}`)
+
+    const root = tree()
+    let parents
+
+    for (e of entryKeys) {
+      // setStatus('e = "' + e + '"')
+
+      parents = ents[e].parentDirs()
+
+      // setStatus(`parents=${parents}`)
+
+      root.addEntry(parents, ents[e])
+    }
+
+    // setStatus(`root=${JSON.stringify(root)}`)
+
+    return root
+  }
+
+  function addEntry (parents, entry) {
+    // setStatus(`parents=${parents} entry=${entry.name}`)
+
+    if (parents.length === 0) {
+      entries[path.basename(entry.name)] = entry
+    } else {
+      if (typeof entries[path.basename(parents)] === 'undefined') {
+        entries[path.basename(parents)] = tree()
+
+        entry.name = entry.name.split('/').slice(1).join('/')
+
+        entries[path.basename(parents)].addEntry(parents.split('/').slice(1).join('/'), entry)
+      }
+    }
+  }
+
+  async function traverse (db, root) {
+    // setStatus(`traversing=${JSON.stringify(entries, null, 2)}`)
+
+    for (e of Object.keys(entries)) {
+      if (entries[e].type === 'tree') {
+        // setStatus(`Found tree ${e}`)
+
+        await entries[e].traverse(db, entries[e])
+      } else {
+        // setStatus(`Found blob ${e}`)
+      }
+    }
+
+    root.oid = Android.sha1Hex(util.gitify('tree', root))
+
+    await db.store('tree', root)
+
+    return root.oid
+  }
 
   // https://stackoverflow.com/a/33920309/7665043
   function stringToHex (s) {
@@ -534,14 +646,26 @@ function tree (e) {
   }
 
   function toString () {
-    return entries.sort()
-      .map((e) => `${e.mode()} ${e.name}\0${stringToHex(e.oid)}`)
+    // setStatus(`entries=${JSON.stringify(entries)}`)
+
+    return Object.keys(entries)
+      .map((e) => `${entries[e].mode()} ${e}\0${entries[e].oid}`)
       .join('')
+  }
+
+  function mode () {
+    return DIRECTORY_MODE
   }
 
   return {
     type,
-    toString
+    oid: undefined,
+    build,
+    addEntry,
+    traverse,
+    stringToHex,
+    toString,
+    mode
   }
 }
 
@@ -591,8 +715,8 @@ function refs (pathname) {
   }
 
   async function readHead () {
-    if (await fs.promises.exists(headPath)) {
-      return await fs.promises.readFile(headPath)
+    if (await fs.exists(headPath)) {
+      return await fs.readFile(headPath)
     } else {
       return ''
     }
@@ -606,7 +730,7 @@ function refs (pathname) {
 }
 
 function jit (repoPath) {
-  const workspacePath = path.absolute(repoPath)
+  const workspacePath = path.getAbsolutePath(repoPath)
   const gitPath = path.join(workspacePath, '.git')
 
   const workspaceObj = workspace(workspacePath)
@@ -622,10 +746,10 @@ function jit (repoPath) {
 
   async function init () {
     for (const dir of ['objects', 'refs']) {
-      await fs.promises.mkdirp(path.join(workspacePath, '.git', dir))
+      await fs.mkdirp(path.join(workspacePath, '.git', dir))
     }
 
-    process.stdout(`Initialized empty Jit repository in ${workspacePath}`)
+    setStatus(`Initialized empty Jit repository in ${workspacePath}`)
   }
 
   async function commit (message) {
@@ -633,33 +757,53 @@ function jit (repoPath) {
       throw new Error('Author name and email must be set before committing.')
     }
 
-    const entries = await workspaceObj.listFiles()
+    const entries = {}
+    const files = await workspaceObj.listFiles()
 
-    for (let i = 0; i < entries.length; i++) {
-      const data = await workspaceObj.readFile(entries[i])
+    // setStatus(`files=${files}`)
+
+    for (let i = 0; i < files.length; i++) {
+      if (await Android.isDir(path.join(workspacePath, files[i]))) {
+        continue
+      }
+
+      const data = await workspaceObj.readFile(files[i])
+
       const blobObj = blob(data)
-      blobObj.oid = await databaseObj.store(blobObj)
 
-      const stats = await fs.promises.stat(path.join(repoPath, entries[i]))
+      blobObj.oid = Android.sha1Hex(util.gitify('blob', blobObj))
 
-      entries[i] = entry(entries[i], blobObj.oid, stats)
+      await databaseObj.store('blob', blobObj)
+
+      const blobPath = path.join(repoPath, files[i])
+
+      // setStatus(`blobPath=${blobPath} files[i]=${files[i]}`)
+
+      const stats = await fs.stat(blobPath)
+
+      entries[files[i]] = entry(files[i], blobObj.oid, stats)
+
+      // setStatus(`entries[${i}]=${JSON.stringify(entries[i])}`)
     }
+
+    const root = tree().build(entries)
+
+    const treeOid = await root.traverse(databaseObj, root)
 
     const parent = await refsObj.readHead()
 
-    const treeObj = tree(entries)
-    treeObj.oid = await databaseObj.store(treeObj)
-
     const authorObj = authorObject(config.author.name, config.author.email, new Date())
-    const commitObj = commitObject(parent, treeObj.oid, authorObj, message)
+    const commitObj = commitObject(parent, treeOid, authorObj, message)
 
-    const commitOid = await databaseObj.store(commitObj)
+    commitObj.oid = Android.sha1Hex(util.gitify('commit', commitObj))
 
-    await refsObj.updateHead(commitOid)
+    await databaseObj.store('commit', commitObj)
+
+    await refsObj.updateHead(commitObj.oid)
 
     const isRoot = (parent === '' ? '(root-commit) ' : '')
 
-    process.stdout(`[${isRoot}${commitOid}] ${message.split('\n').slice(0, 1)}`)
+    setStatus(`[${isRoot}${commitObj.oid}] ${message.split('\n').slice(0, 1)}`)
   }
 
   function setAuthor (to) {
@@ -668,20 +812,105 @@ function jit (repoPath) {
     config.author.email = to[1]
   }
 
+  async function catfile (file) {
+    let data = await Android.zlibInflate(await fs.readFile(file))
+
+    const parsed = []
+
+    let  type, name, size, hash, content, length
+
+    let nextSpace = data.indexOf(' ')
+    let nextNull = data.indexOf('\0')
+
+    let mode = data.slice(0, nextSpace)
+
+    data = data.slice(nextSpace + 1)
+
+    if (mode === 'tree') {
+      type = 'tree'
+
+      while (data !== '') {
+        /*
+         * tree 51\040000 dir\019244fc55d16fc28787265b3600aba08304a2593e
+         */
+
+        nextNull = data.indexOf('\0')
+
+        size = data.slice(0, nextNull)
+
+        // data = data.slice(size)
+        data = data.slice(nextNull + 1)
+
+        nextSpace = data.indexOf(' ')
+
+        mode = data.slice(0, nextSpace)
+
+        data = data.slice(nextSpace + 1)
+
+        nextNull = data.indexOf('\0')
+
+        name = data.slice(0, nextNull)
+
+        data = data.slice(nextNull + 1)
+
+        length = 40
+
+        hash = data.slice(0, length)
+
+        parsed.push(`${mode} ${name} ${hash}`)
+
+        data = data.slice(length)
+      }
+    } else if (mode === 'blob') {
+      type = 'blob'
+
+      nextNull = data.indexOf('\0')
+
+      size = data.substring(0, nextNull)
+
+      data = data.slice(nextNull + 1)
+
+      length = parseInt(size)
+
+      content = data.slice(0, length)
+
+      parsed.push(`${mode} ${content}`)
+
+      data = data.slice(length)
+    } else if (mode === 'commit') {
+      type = 'commit'
+
+      nextNull = data.indexOf('\0')
+
+      size = data.slice(0, nextNull)
+
+      length = parseInt(size)
+
+      data = data.slice(nextNull + 1)
+
+      content = data.slice(0, length)
+
+      parsed.push(`${type} ${content}`)
+
+      data = data.slice(length)
+    }
+
+    return parsed.join('\n')
+  }
+
   return {
     refs: refsObj,
     config,
     init,
     commit,
-    setAuthor
+    setAuthor,
+    catfile
   }
 }
 
 /*
  *
- *
  * Testing
- *
  *
  */
 
@@ -874,84 +1103,78 @@ async function runTests () {
 
   await test.title('Filesystem', async function () {
     await test('Write file', async function () {
-      await fs.promises.writeFile(Android.homeFolder() + '/.gitui-test-file.txt', 'Hello, world!')
+      await fs.writeFile(Android.homeFolder() + '/.gitui-test-file.txt', 'Hello, world!')
 
       return true
     })
 
     await test('Read file', async function () {
-      const data = await fs.promises.readFile(Android.homeFolder() + '/.gitui-test-file.txt')
+      const data = await fs.readFile(Android.homeFolder() + '/.gitui-test-file.txt')
 
       return data === 'Hello, world!'
     })
 
     await test('File exists', async function () {
-      const result = await fs.promises.exists(Android.homeFolder() + '/.gitui-test-file.txt')
-      await fs.promises.delete(Android.homeFolder() + '/.gitui-test-file.txt')
+      const result = await fs.exists(Android.homeFolder() + '/.gitui-test-file.txt')
+      await fs.delete(Android.homeFolder() + '/.gitui-test-file.txt')
 
       return result
     })
 
     await test('Rename', async function () {
-      await fs.promises.mkdir(Android.homeFolder() + '/.gitui-test-dir')
-      await fs.promises.rename(Android.homeFolder() + '/.gitui-test-dir', Android.homeFolder() + '/.gitui-test-folder')
-      const result = await fs.promises.exists(Android.homeFolder() + '/.gitui-test-folder')
-      await fs.promises.rimraf(Android.homeFolder() + '/.gitui-test-folder')
+      await fs.mkdir(Android.homeFolder() + '/.gitui-test-dir')
+      await fs.rename(Android.homeFolder() + '/.gitui-test-dir', Android.homeFolder() + '/.gitui-test-folder')
+      const result = await fs.exists(Android.homeFolder() + '/.gitui-test-folder')
+      await fs.rimraf(Android.homeFolder() + '/.gitui-test-folder')
 
       return result
     })
 
     await test('Make directory', async function () {
-      await fs.promises.mkdir(Android.homeFolder() + '/.gitui-test-dir')
+      await fs.mkdir(Android.homeFolder() + '/.gitui-test-dir')
 
       return true
     })
 
     await test('Delete path', async function () {
-      await fs.promises.delete(Android.homeFolder() + '/.gitui-test-dir')
+      await fs.delete(Android.homeFolder() + '/.gitui-test-dir')
 
       return true
     })
 
     await test('Remove directory', async function () {
-      await fs.promises.mkdir(Android.homeFolder() + '/.gitui-test-dir')
-      await fs.promises.writeFile(Android.homeFolder() + '/.gitui-test-dir/.gitui-test-file.txt', 'Hello, world!')
-      const result = await fs.promises.exists(Android.homeFolder() + '/.gitui-test-dir/.gitui-test-file.txt')
-      await fs.promises.rimraf(Android.homeFolder() + '/.gitui-test-dir')
+      await fs.mkdir(Android.homeFolder() + '/.gitui-test-dir')
+      await fs.writeFile(Android.homeFolder() + '/.gitui-test-dir/.gitui-test-file.txt', 'Hello, world!')
+      const result = await fs.exists(Android.homeFolder() + '/.gitui-test-dir/.gitui-test-file.txt')
+      await fs.rimraf(Android.homeFolder() + '/.gitui-test-dir')
 
       return result
     })
 
     await test('Read directory', async function () {
-      await fs.promises.mkdir(Android.homeFolder() + '/.gitui-test-dir')
-      await fs.promises.writeFile(Android.homeFolder() + '/.gitui-test-dir/.gitui-test-file1.txt', '')
-      await fs.promises.writeFile(Android.homeFolder() + '/.gitui-test-dir/.gitui-test-file2.txt', '')
-      const result = (await fs.promises.readdir(Android.homeFolder() + '/.gitui-test-dir'))
-      await fs.promises.rimraf(Android.homeFolder() + '/.gitui-test-dir')
+      await fs.mkdir(Android.homeFolder() + '/.gitui-test-dir')
+      await fs.writeFile(Android.homeFolder() + '/.gitui-test-dir/.gitui-test-file1.txt', '')
+      await fs.writeFile(Android.homeFolder() + '/.gitui-test-dir/.gitui-test-file2.txt', '')
+      const result = (await fs.readdir(Android.homeFolder() + '/.gitui-test-dir'))
+      await fs.rimraf(Android.homeFolder() + '/.gitui-test-dir')
 
-      if (result.error) {
-        throw new Error(result.error)
-      }
-
-      const split = result.split(',')
-
-      return (split.includes('.gitui-test-file1.txt') && split.includes('.gitui-test-file2.txt'))
+      return (result.includes('.gitui-test-file1.txt') && result.includes('.gitui-test-file2.txt'))
     })
 
     await test('Disk usage', async function () {
-      await fs.promises.writeFile(Android.homeFolder() + '/.gitui-test-file.txt', 'Hello, world!')
-      const result = await fs.promises.du(Android.homeFolder() + '/.gitui-test-file.txt')
-      await fs.promises.delete(Android.homeFolder() + '/.gitui-test-file.txt')
+      await fs.writeFile(Android.homeFolder() + '/.gitui-test-file.txt', 'Hello, world!')
+      const result = await fs.du(Android.homeFolder() + '/.gitui-test-file.txt')
+      await fs.delete(Android.homeFolder() + '/.gitui-test-file.txt')
 
       return (result !== '')
     })
 
     await test('Can stat', async function () {
-      await fs.promises.mkdir(Android.homeFolder() + '/.gitui-test-dir')
-      await fs.promises.writeFile(Android.homeFolder() + '/.gitui-test-dir/.gitui-test-file1.txt', '')
-      const resultStat = (await fs.promises.stat(Android.homeFolder() + '/.gitui-test-dir'))
+      await fs.mkdir(Android.homeFolder() + '/.gitui-test-dir')
+      await fs.writeFile(Android.homeFolder() + '/.gitui-test-dir/.gitui-test-file1.txt', '')
+      const resultStat = (await fs.stat(Android.homeFolder() + '/.gitui-test-dir'))
 
-      await fs.promises.rimraf(Android.homeFolder() + '/.gitui-test-dir')
+      await fs.rimraf(Android.homeFolder() + '/.gitui-test-dir')
 
       if (resultStat.error) {
         throw new Error(resultStat.error)
@@ -960,26 +1183,24 @@ async function runTests () {
       return true
     })
 
-    await fs.promises.rimraf(Android.homeFolder() + '/.gitui-test-dir')
+    await fs.rimraf(Android.homeFolder() + '/.gitui-test-dir')
   })
 
   /*
    *
-   *
    * Git/jit
-   *
    *
    */
 
   await test.title('Git/Jit', async function () {
     await test('Workspace.listFiles', async function testWorkspaceListFiles () {
-      await fs.promises.mkdir(Android.homeFolder() + '/gitui-test')
+      await fs.mkdir(Android.homeFolder() + '/gitui-test')
       const ws = workspace(Android.homeFolder() + '/gitui-test')
 
       const files = ['bye.txt', 'hi.txt']
 
-      await fs.promises.writeFile(path.join(ws.pathname, files[0]), 'goodbye workspace')
-      await fs.promises.writeFile(path.join(ws.pathname, files[1]), 'hello workspace')
+      await fs.writeFile(path.join(ws.pathname, files[0]), 'goodbye workspace')
+      await fs.writeFile(path.join(ws.pathname, files[1]), 'hello workspace')
 
       const list = await ws.listFiles()
 
@@ -988,14 +1209,14 @@ async function runTests () {
     })
 
     await test('Workspace.readFile', async function testWorkspaceListFiles () {
-      await fs.promises.mkdir(Android.homeFolder() + '/gitui-test')
+      await fs.mkdir(Android.homeFolder() + '/gitui-test')
       const ws = workspace(Android.homeFolder() + '/gitui-test')
       const data = 'hello, workspace!'
       const filename = 'hello.txt'
 
-      await fs.promises.writeFile(path.join(ws.pathname, filename), data)
+      await fs.writeFile(path.join(ws.pathname, filename), data)
 
-      const result = await ws.readFile(path.join(ws.pathname, filename))
+      const result = await ws.readFile(filename)
 
       if (result !== data) {
         throw new Error(`workspace.readFile('${filename}') - "${result}" !== "${data}"`)
@@ -1016,9 +1237,11 @@ async function runTests () {
       const object = blob('hello world')
       const db = database(gitPath)
 
-      object.oid = (await db.store(object))
+      object.oid = Android.sha1Hex(util.gitify('blob', object))
 
-      return (await fs.promises.exists(path.join(gitPath, 'objects', object.oid.substring(0, 2), object.oid.substring(2))))
+      await db.store('blob', object)
+
+      return (await fs.exists(path.join(gitPath, 'objects', object.oid.substring(0, 2), object.oid.substring(2))))
     })
 
     test('Blob test', function testBlob () {
@@ -1035,8 +1258,10 @@ async function runTests () {
     })
 
     test('Tree test', function testTree () {
-      const e = entry('hello', 'world', '{mode:33200}')
-      const t = tree([e])
+      const e = entry('hello', tree().stringToHex('world'), { mode: 33200 })
+      const t = tree().build({
+        [e.name]: e
+      })
 
       // hello\0776f726c64 as a contiguous string was crashing the script. Lol.
       return (t.toString() === '100660 hello\0' + '776f726c64' && t.type === 'tree')
@@ -1073,20 +1298,22 @@ async function runTests () {
       const repoPath = path.join(Android.homeFolder(), 'gitui-test')
       await jit(repoPath).init()
 
-      return (await fs.promises.exists(path.join(repoPath, '.git')))
+      return (await fs.exists(path.join(repoPath, '.git')))
     })
 
-    await test('jit root-commit', async function testCommit () {
+    await test('root-commit', async function testCommit () {
       const repoPath = path.join(Android.homeFolder(), 'gitui-test')
 
       const jitObj = await jit(repoPath)
       jitObj.setAuthor('Tom @ l3l_aze')
       await jitObj.commit('Testing...')
 
-      return (await fs.promises.exists(path.join(repoPath, '.git', 'HEAD')))
+      return (await fs.exists(path.join(repoPath, '.git', 'HEAD')))
     })
 
-    await test('jit 2nd+ commit', async function testCommit2 () {
+    await test('nested tree commit', async function testNestedTree () {
+      await fs.rimraf(path.join(Android.homeFolder(), 'gitui-test'))
+
       const repoPath = path.join(Android.homeFolder(), 'gitui-test')
 
       const jitObj = await jit(repoPath)
@@ -1094,14 +1321,44 @@ async function runTests () {
 
       const oldHead = await jitObj.refs.readHead()
 
-      await fs.promises.writeFile(path.join(repoPath, 'hello.txt'), 'hai!')
-      await jitObj.commit('Still testing...')
+      await fs.mkdirp(path.join(repoPath, 'dir1'))
+      await fs.writeFile(path.join(repoPath, 'dir1', 'hello.txt'), 'hai!')
+
+      await jitObj.commit('Nested tree')
+
+      const head = await jitObj.refs.readHead()
+      const commitFile = path.join(repoPath, '.git', 'objects', head.slice(0, 2), head.slice(2))
+
+      const catCommit = await jitObj.catfile(commitFile)
+      const commitTree = catCommit.split('\n')[0]
+        .split(' ')[2]
+
+
+      const treeFile = path.join(repoPath, '.git', 'objects', commitTree.slice(0, 2), commitTree.slice(2))
+
+      const catTree = await jitObj.catfile(treeFile)
+
+      const nestedTreeOid = catTree.split('\n')[0]
+        .split(' ')[2]
+
+      const nestedTreeFile = path.join(repoPath, '.git', 'objects', nestedTreeOid.slice(0, 2), nestedTreeOid.slice(2))
+
+      const nestedTree = await jitObj.catfile(nestedTreeFile)
+
+      const blobOid = nestedTree.split('\n')[0]
+        .split(' ')[2]
+
+      const blobFile = path.join(repoPath, '.git', 'objects', blobOid.slice(0, 2), blobOid.slice(2))
+
+      const blobData = await jitObj.catfile(blobFile)
+
+      setStatus(`\ncatfile ${commitFile}\n${catCommit}\n\ncatfile ${treeFile}\n${catTree}\n\ncatfile ${nestedTreeFile}\n${nestedTree}\n\ncatfile ${blobFile}\n${blobData}`)
 
       return (oldHead !== await jitObj.refs.readHead())
     })
-
-    await fs.promises.rimraf(path.join(Android.homeFolder(), 'gitui-test'))
   })
+
+  await fs.rimraf(path.join(Android.homeFolder(), 'gitui-test'))
 
   return tests
 }
@@ -1216,5 +1473,6 @@ window.addEventListener('DOMContentLoaded', async function startUp () {
 
     // document.getElementById('status').value = ''
     setStatus(message)
+    toggleStatus()
   }
 })
