@@ -428,7 +428,7 @@ function workspace (pathArg) {
       if (await Android.isDir(filePath)) {
         const nested = await listFiles(filePath)
 
-        for(let i = 0; i < nested.length; i++) {
+        for (let i = 0; i < nested.length; i++) {
           list.push(nested[i])
         }
       }
@@ -817,7 +817,7 @@ function jit (repoPath) {
 
     const parsed = []
 
-    let  type, name, size, hash, content, length
+    let type, name, size, hash, content, length
 
     let nextSpace = data.indexOf(' ')
     let nextNull = data.indexOf('\0')
@@ -1332,7 +1332,6 @@ async function runTests () {
       const catCommit = await jitObj.catfile(commitFile)
       const commitTree = catCommit.split('\n')[0]
         .split(' ')[2]
-
 
       const treeFile = path.join(repoPath, '.git', 'objects', commitTree.slice(0, 2), commitTree.slice(2))
 
