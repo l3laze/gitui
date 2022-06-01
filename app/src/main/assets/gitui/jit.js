@@ -729,13 +729,91 @@ function refs (pathname) {
   }
 }
 
+function index (p) {
+  const indexPath = p
+  const entries = {}
+
+  function createEntry (targetPath, oid, stat) {
+    const REG_MODE = parseInt('0100660', 8)
+    const EXE_MODE = parseInt('0100755', 8)
+    const MAX_PATH_SIZE = 0xfff
+
+    const entryFields = [
+      'ctime',
+      'ctime_nsec',
+      'mtime',
+      'mtime_nsec',
+      'dev',
+      'ino',
+      'mode',
+      'uid',
+      'gid',
+      'size',
+      'oid',
+      'flags',
+      'path'
+    ]
+
+    const mode = stat.executable ? EXE_MODE : REG_MODE
+    const flags = Math.min(targetPath.length, MAX_PATH_SIZE)
+
+    const obj = {}
+
+    for (const e of entryFields) {
+      if (e === 'mode') {
+        obj.mode = mode
+      } else if (e === 'oid') {
+        obj.oid = oid
+      } else if (e === 'flags') {
+        obj.flags = flags
+      } else if (e === 'path') {
+        obj.path = targetPath
+      } else if (typeof stat[e] !== 'undefined') {
+        obj[e] = stat[e]
+      }
+    }
+
+    obj.toString = function () {
+      let result = ''
+
+      for (const e of entryFields) {
+        result += entries[e]
+      }
+
+      result += '\0'
+
+      do {
+        result += '\0'
+      } while (result.length % 8 !== 0)
+
+      return result
+    }
+
+    return obj
+  }
+
+  async function add (p, oid, stat) {
+    const entry = createEntry(p, oid, stat)
+
+    entries[p] = entry
+  }
+
+  return {
+    pathTo: indexPath,
+    createEntry,
+    add
+  }
+}
+
 function jit (repoPath) {
   const workspacePath = path.getAbsolutePath(repoPath)
   const gitPath = path.join(workspacePath, '.git')
+  const indexPath = path.join(gitPath, 'index')
 
   const workspaceObj = workspace(workspacePath)
   const databaseObj = database(gitPath)
   const refsObj = refs(gitPath)
+  const indexObj = index(indexPath)
 
   const config = {
     author: {
@@ -804,6 +882,33 @@ function jit (repoPath) {
     const isRoot = (parent === '' ? '(root-commit) ' : '')
 
     setStatus(`[${isRoot}${commitObj.oid}] ${message.split('\n').slice(0, 1)}`)
+  }
+
+  async function add (targets) {
+    let files, data, stat, blob
+
+    for (let t of targets) {
+      t = path.getAbsoluePath(t)
+
+      files = await workspace.listFiles(t)
+
+      for (const f of files) {
+        data = workspaceObj.readFile(f)
+        stat = workspaceObj.statFile(f)
+
+        blob = blob(data)
+        blob.oid = await Android.sha1Hex(util.gitify('blob', data))
+
+        await databaseObj.store(blob)
+
+        indexObj.add(f, blob.oid, stat)
+      }
+
+      await Android.updateIndex(indexPath, Object.keys(indexObj.entries)
+        .sort()
+        .map((e) => indexObj.entries[e].toString())
+      )
+    }
   }
 
   function setAuthor (to) {
@@ -903,6 +1008,7 @@ function jit (repoPath) {
     config,
     init,
     commit,
+    add,
     setAuthor,
     catfile
   }

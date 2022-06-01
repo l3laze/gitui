@@ -14,6 +14,7 @@ import java.util.zip.Inflater;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.nio.file.Path;
+import java.nio.ByteBuffer;
 import java.nio.channels.FileLock;
 import java.nio.file.FileAlreadyExistsException;
 
@@ -31,6 +32,8 @@ public class WebAppInterface {
   protected static Context mContext;
   protected static AssetManager assetManager;
   protected static boolean storagePermission = false;
+  protected static Lockfile indexLockfile;
+  protected MessageDigest indexDigest;
 
   WebAppInterface(Context c) {
     setInterface(c.getApplicationContext());
@@ -383,16 +386,64 @@ public class WebAppInterface {
   @JavascriptInterface
   public String updateHead (String headPath, String oid) {
     try {
-      Lockfile lockfile = new Lockfile(headPath);
+      Lockfile headLockfile = new Lockfile(headPath);
 
-      if (lockfile.holdForUpdate()) {
-        lockfile.write(oid);
-        lockfile.commit();
+      if (headLockfile.holdForUpdate()) {
+        headLockfile.write(oid.getBytes());
+        headLockfile.commit();
         return "{}";
       }
 
       return "{\"error\":\"Could not get lock on file " + headPath + ".\"}";
     } catch (IOException | SecurityException | FileAlreadyExistsException | FileNotFoundException | StaleLockException err) {
+      return "{\"error\":\"" + err.getMessage() + "\"}";
+    }
+  }
+
+  protected void beginWritingIndex () throws java.security.NoSuchAlgorithmException, IOException, StaleLockException {
+    indexDigest = MessageDigest.getInstance("SHA-1");
+  }
+
+  protected void writeToIndex (byte[] data) throws IOException, StaleLockException {
+    indexLockfile.write(data);
+    indexDigest.update(data);
+  }
+
+  protected void finishWritingIndex () throws IOException, StaleLockException {
+    indexLockfile.write(bytesToHex(indexDigest.digest()).getBytes());
+    indexLockfile.commit();
+  }
+
+  @JavascriptInterface
+  public String updateIndex (String indexPath, String[] entries) {
+    try {
+      indexLockfile = new Lockfile(indexPath);
+
+      if (indexLockfile.holdForUpdate()) {
+        beginWritingIndex();
+
+        int indexVersion = new Long(2).intValue();
+        int numEntries = new Long(entries.length).intValue();
+
+        ByteBuffer header = ByteBuffer.allocate(12);
+
+        header.put("DIRC".getBytes());
+        header.putInt(indexVersion);
+        header.putInt(numEntries);
+
+        writeToIndex(header.array());
+
+        for (int i = 0; i < entries.length; i++) {
+          writeToIndex(entries[i].getBytes());
+        }
+
+        finishWritingIndex();
+
+        return "{}";
+      }
+
+      return "{\"error\":\"Could not get lock on file " + indexPath + ".\"}";
+    } catch (IOException | SecurityException | FileAlreadyExistsException | FileNotFoundException | StaleLockException | java.security.NoSuchAlgorithmException err) {
       return "{\"error\":\"" + err.getMessage() + "\"}";
     }
   }
@@ -431,9 +482,9 @@ public class WebAppInterface {
       }
     }
 
-    public void write (String string) throws IOException, StaleLockException {
+    public void write (byte[] b) throws IOException, StaleLockException {
       raiseOnStaleLock();
-      fos.write(string.getBytes());
+      fos.write(b);
     }
 
     public void commit () throws IOException, StaleLockException {
