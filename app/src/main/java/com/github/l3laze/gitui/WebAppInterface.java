@@ -415,8 +415,12 @@ public class WebAppInterface {
   }
 
   @JavascriptInterface
-  public String updateIndex (String indexPath, String[] entries) {
+  public String updateIndex (String indexPath, String[] entries, String changed) {
     try {
+      if (changed.equals("false")) {
+        indexLockfile.rollback();
+      }
+
       indexLockfile = new Lockfile(indexPath);
 
       if (indexLockfile.holdForUpdate()) {
@@ -439,13 +443,51 @@ public class WebAppInterface {
 
         finishWritingIndex();
 
-        return "{}";
+        changed = "false";
+      } else {
+        return "{\"error\":\"Could not get lock on file " + indexPath + ".\"}";
       }
-
-      return "{\"error\":\"Could not get lock on file " + indexPath + ".\"}";
     } catch (IOException | SecurityException | FileAlreadyExistsException | FileNotFoundException | StaleLockException | java.security.NoSuchAlgorithmException err) {
       return "{\"error\":\"" + err.getMessage() + "\"}";
     }
+
+    return "{\"changed\":\"" + changed + "\"}";
+  }
+
+  @JavascriptInterface
+  public String beginLoadingIndex (String indexPath) {
+    try {
+      indexLockfile.raiseOnStaleLock();
+
+      indexLockfile = new Lockfile(indexPath);
+
+      if (indexLockfile.holdForUpdate()) {
+        return "true";
+      }
+
+      return "{\"error\":\"Could not get lock on file " + indexPath + ".\"}";
+    } catch (StaleLockException | IOException err) {
+      return "{\"error\":\"" + err.getMessage() + "\"}";
+    }
+  }
+
+  @JavascriptInterface
+  public String verifyChecksum (String[] rawEnts, String digest) {
+    try {
+      MessageDigest cksum = MessageDigest.getInstance("SHA-1");
+
+      for (int i = 0; i < rawEnts.length; i++) {
+        cksum.update(rawEnts[i].getBytes());
+      }
+
+      if (bytesToHex(cksum.digest()).equals(digest) == false) {
+        return "false";
+      }
+    } catch (java.security.NoSuchAlgorithmException err) {
+      return "{\"error\":\"" + err.getMessage() + "\"}";
+    }
+
+    return "true";
   }
 
   protected class Lockfile {
@@ -491,7 +533,6 @@ public class WebAppInterface {
       raiseOnStaleLock();
       fos.close();
       lock.close();
-      // lock.release();
 
       new File(lockPath).renameTo(new File(filePath));
 
@@ -502,6 +543,16 @@ public class WebAppInterface {
       if (lock == null) {
         throw new StaleLockException("Not holding file lock: " + filePath);
       }
+    }
+
+    public void rollback () throws StaleLockException, IOException {
+      raiseOnStaleLock();
+
+      lock.close();
+
+      new File(lockPath).delete();
+
+      lock = null;
     }
   }
 

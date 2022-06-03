@@ -514,7 +514,7 @@ function blob (d) {
   return {
     type,
     toString,
-    oid: undefined
+    oid: ''
   }
 }
 
@@ -659,7 +659,7 @@ function tree (e) {
 
   return {
     type,
-    oid: undefined,
+    oid: '',
     build,
     addEntry,
     traverse,
@@ -731,28 +731,31 @@ function refs (pathname) {
 
 function index (p) {
   const indexPath = p
-  const entries = {}
+  const entryFields = [
+    'ctime',
+    'ctime_nsec',
+    'mtime',
+    'mtime_nsec',
+    'dev',
+    'ino',
+    'mode',
+    'uid',
+    'gid',
+    'size',
+    'oid',
+    'flags',
+    'path'
+  ]
+
+  let entries = {}
+  let changed = false
+
+  const ENTRY_BLOCK = 8
 
   function createEntry (targetPath, oid, stat) {
     const REG_MODE = parseInt('0100660', 8)
     const EXE_MODE = parseInt('0100755', 8)
     const MAX_PATH_SIZE = 0xfff
-
-    const entryFields = [
-      'ctime',
-      'ctime_nsec',
-      'mtime',
-      'mtime_nsec',
-      'dev',
-      'ino',
-      'mode',
-      'uid',
-      'gid',
-      'size',
-      'oid',
-      'flags',
-      'path'
-    ]
 
     const mode = stat.executable ? EXE_MODE : REG_MODE
     const flags = Math.min(targetPath.length, MAX_PATH_SIZE)
@@ -777,16 +780,20 @@ function index (p) {
       let result = ''
 
       for (const e of entryFields) {
-        result += entries[e]
+        result += this[e]
       }
 
       result += '\0'
 
       do {
         result += '\0'
-      } while (result.length % 8 !== 0)
+      } while (result.length % ENTRY_BLOCK !== 0)
 
       return result
+    }
+
+    obj.key = function () {
+      return targetPath
     }
 
     return obj
@@ -796,12 +803,98 @@ function index (p) {
     const entry = createEntry(p, oid, stat)
 
     entries[p] = entry
+
+    changed = true
+  }
+
+  async function loadIndex () {
+    const HEADER_SIZE = 12
+
+    entries = {}
+    changed = false
+
+    if (await fs.exists(indexPath) && await Android.beginLoadingIndex(indexPath)) {
+      const data = await fs.readFile(indexPath)
+      const entryCount = readIndexHeader(data)
+      const rawEntries = readIndexEntries(data.slice(HEADER_SIZE - 1), entryCount)
+      const result = await Android.verifyChecksum(rawEntries, data.slice(-20))
+
+      if (result.indexOf('error"') > -1) {
+        throw new Error(JSON.parse(result).error)
+      }
+    }
+  }
+
+  function readIndexHeader (data) {
+    const SIGNATURE = 'DIRC'
+    const VERSION = 2
+
+    const sig = data.slice(0, 3)
+    const ver = data.slice(4, 7)
+    const count = data.slice(8, 11)
+
+    if (sig !== SIGNATURE) {
+      throw new Error(`Index signature mismatch. Expected ${SIGNATURE}, found ${sig}.`)
+    } else if (ver !== VERSION) {
+      throw new Error(`Index version mismatch. Expected ${VERSION}, found ${ver}.`)
+    }
+
+    return count
+  }
+
+  function readIndexEntries (data, count) {
+    const ENTRY_MIN_SIZE = 64
+
+    let entry
+    const rawEntries = []
+
+    for (let i = 0; i < count; i++) {
+      entry = data.slice(0, ENTRY_MIN_SIZE - 1)
+      data = data.slice(ENTRY_MIN_SIZE - 1)
+
+      while (entry[entry.length - 1] !== '\0') {
+        entry += data.slice(0, ENTRY_BLOCK)
+        data = data.slice(ENTRY_BLOCK)
+      }
+
+      rawEntries.push(entry)
+
+      entry = parseEntry(entry)
+
+      entries[entry.key] = entry
+    }
+
+    return rawEntries
+  }
+
+  function parseEntry (entry) {
+    const keys = entryFields.slice(0, -1)
+    const ent = {
+      stat: {}
+    }
+
+    for (let i = 0; i < 10; i++) {
+      ent.stat[keys[i]] = entry.slice(0, 3)
+      entry = entry.slice(0, 3)
+    }
+
+    ent.oid = entry.slice(0, 19)
+    entry = entry.slice(0, 19)
+
+    ent.flags = entry.slice(0, 2)
+    entry = entry.slice(0, 2)
+
+    ent.path = entry.slice(0, entry.indexOf('\0'))
+
+    return createEntry(ent.path, ent.oid, ent.stat)
   }
 
   return {
     pathTo: indexPath,
+    changed,
     createEntry,
-    add
+    add,
+    loadIndex
   }
 }
 
@@ -904,10 +997,17 @@ function jit (repoPath) {
         indexObj.add(f, blob.oid, stat)
       }
 
-      await Android.updateIndex(indexPath, Object.keys(indexObj.entries)
-        .sort()
+      const sortedEntries = Object.keys(indexObj.entries)
+        .sort((a, b) => path.basename(a) < path.basename(b))
         .map((e) => indexObj.entries[e].toString())
-      )
+
+      const result = await Android.updateIndex(indexPath, sortedEntries, indexObj.changed)
+
+      if (result.indexOf('error"') > -1) {
+        throw new Error(JSON.parse(result).error)
+      } else {
+        indexObj.changed = (result === 'true')
+      }
     }
   }
 
@@ -1005,6 +1105,7 @@ function jit (repoPath) {
 
   return {
     refs: refsObj,
+    index: indexObj,
     config,
     init,
     commit,
@@ -1461,9 +1562,20 @@ async function runTests () {
 
       return (oldHead !== await jitObj.refs.readHead())
     })
-  })
 
-  await fs.rimraf(path.join(Android.homeFolder(), 'gitui-test'))
+    await test('index.add', async function testIndexAdd () {
+      await fs.rimraf(path.join(Android.homeFolder(), 'gitui-test'))
+
+      const repoPath = path.join(Android.homeFolder(), 'gitui-test')
+
+      const jitObj = await jit(repoPath)
+      jitObj.setAuthor('Tom @ l3l_aze')
+
+      return false
+    })
+
+    await fs.rimraf(path.join(Android.homeFolder(), 'gitui-test'))
+  })
 
   return tests
 }
