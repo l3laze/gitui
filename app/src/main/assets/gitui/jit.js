@@ -408,6 +408,66 @@ const util = {
   }
 }
 
+function hexViewFormat (hex) {
+  let bytes = 0
+  let output = ''
+  let line = ''
+  let text = ''
+  let ch = 0
+
+  for (let i = 0; i < hex.length; i += 2) {
+    line += hex.substring(i, i + 2) + ' '
+    ch = parseInt(hex.substring(i, i + 2), 16)
+
+    bytes++
+
+    text += (ch > 30 && ch < 128)
+      ? String.fromCharCode(ch)
+      : '.'
+
+    if (bytes === 4) {
+      line += '| '
+    } else if (bytes === 8 || i + 2 > hex.length) {
+      output += line + ' || ' + text + '\n'
+      bytes = 0
+      text = ''
+      line = ''
+    }
+  }
+
+  return output
+}
+
+function toHex (o, padTo = 0) {
+  let h
+
+  if (typeof o === 'number') {
+    h = o.toString(16)
+  } else if (typeof o === 'string') {
+    h = [...o]
+      .map((c) => c.charCodeAt().toString(16))
+      .join('')
+  } else {
+    throw new Error('toHex can only convert from number or string.')
+  }
+
+  while (h.length < padTo) {
+    h = '0' + h
+  }
+
+  return h
+}
+
+function hexToString (h) {
+  let string = ''
+
+  for (let x = 0; x < h.length; x += 2) {
+    string += String.fromCharCode(parseInt(h.substring(x, x + 2), 16))
+  }
+
+  return string
+}
+
 /*
  *
  * Git functionality
@@ -639,33 +699,6 @@ function tree (e) {
     return root.oid
   }
 
-  // https://stackoverflow.com/a/33920309/7665043
-  function stringToHex (s) {
-    const arr = [...s]
-
-    return arr.map(function (c) {
-      return ('0' + c.charCodeAt(0).toString(16))
-        .slice(-2)
-    }).join('')
-  }
-
-  // https://stackoverflow.com/questions/2250752/ruby-array-pack-and-unpack-functionality-in-javascript/2250867#comment4152720_2250867
-  // eslint-disable-next-line no-unused-vars
-  function hexToString (h) {
-    let i = 0
-    let ascii = ''
-
-    while (i < h.length / 2) {
-      ascii += String.fromCharCode(
-        parseInt(h.substr(i * 2, 2), 16)
-      )
-
-      i++
-    }
-
-    return ascii
-  }
-
   function toString () {
     // setStatus(`entries=${JSON.stringify(entries)}`)
 
@@ -684,7 +717,6 @@ function tree (e) {
     build,
     addEntry,
     traverse,
-    stringToHex,
     toString,
     mode
   }
@@ -751,6 +783,7 @@ function refs (pathname) {
 }
 
 function index (p) {
+  /* eslint camelcase: ["error", {allow: [".time_nsec"]}] */
   const indexPath = p
   const entryFields = {
     ctime: 'ctimeMs',
@@ -868,55 +901,6 @@ function index (p) {
     changed = true
   }
 
-  async function loadIndex () {
-    entries = {}
-    changed = false
-
-    if (await fs.exists(indexPath) && await Android.beginLoadingIndex(indexPath)) {
-      const data = await fs.readFileAsHex(indexPath)
-      const entryCount = readIndexHeader(data.slice(0, 24))
-      const rawEntries = readIndexEntries(data.slice(24, -40), entryCount)
-
-      const result = await Android.verifyChecksum(rawEntries, data.slice(-40))
-
-      if (result.indexOf('error"') > -1) {
-        throw new Error(JSON.parse(result).error)
-      }
-    }
-  }
-
-  function toHex (o, padTo = 0) {
-    let h
-
-    if (typeof o === 'number') {
-      h = o.toString(16)
-    } else if (typeof o === 'string') {
-      h = o.split('')
-        .map((c) => c.charCodeAt().toString(16))
-        .join('')
-    } else {
-      throw new Error('toHex can only convert from number or string.')
-    }
-
-    while (h.length < padTo) {
-      h = '0' + h
-    }
-
-    return h
-  }
-
-  function hexToString (h) {
-    let string = ''
-
-    for (let x = 0; x < h.length; x++) {
-      string += String.fromCharCode(
-        parseInt(h[x] + '' + h[x + 1], 16))
-      x++
-    }
-
-    return string
-  }
-
   function readIndexHeader (data) {
     const SIGNATURE = 'DIRC'
     const VERSION = 2
@@ -1021,6 +1005,23 @@ function index (p) {
     }
 
     return rawEntries
+  }
+
+  async function loadIndex () {
+    entries = {}
+    changed = false
+
+    if (await fs.exists(indexPath) && await Android.beginLoadingIndex(indexPath)) {
+      const data = await fs.readFileAsHex(indexPath)
+      const entryCount = readIndexHeader(data.slice(0, 24))
+      const rawEntries = readIndexEntries(data.slice(24, -40), entryCount)
+
+      const result = await Android.verifyChecksum(rawEntries, data.slice(-40))
+
+      if (result.indexOf('error"') > -1) {
+        throw new Error(JSON.parse(result).error)
+      }
+    }
   }
 
   return {
@@ -1274,36 +1275,6 @@ function jit (repoPath) {
     setAuthor,
     catfile
   }
-}
-
-function hexViewFormat (hex) {
-  let bytes = 0
-  let output = ''
-  let line = ''
-  let text = ''
-  let ch = 0
-
-  for (let i = 0; i < hex.length; i += 2) {
-    line += hex.substring(i, i + 2) + ' '
-    ch = parseInt(hex.substring(i, i + 2), 16)
-
-    bytes++
-
-    text += (ch > 30 && ch < 128)
-      ? String.fromCharCode(ch)
-      : '.'
-
-    if (bytes === 4) {
-      line += '| '
-    } else if (bytes === 8 || i + 2 > hex.length) {
-      output += line + ' || ' + text + '\n'
-      bytes = 0
-      text = ''
-      line = ''
-    }
-  }
-
-  return output
 }
 
 /*
@@ -1656,7 +1627,7 @@ async function runTests () {
     })
 
     test('Tree test', function testTree () {
-      const e = entry('hello', tree().stringToHex('world'), { mode: 33200 })
+      const e = entry('hello', toHex('world'), { mode: 33200 })
       const t = tree().build({
         [e.name]: e
       })

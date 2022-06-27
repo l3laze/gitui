@@ -449,13 +449,14 @@ public class WebAppInterface {
   }
 
   @JavascriptInterface
-  public String updateIndex (String indexPath, String entriesString, String changed) {
+  public String updateIndex (String indexPath, String entriesString, String hasChanged) {
     String[] entries = entriesString.split(",");
+    boolean changed = hasChanged.equals("true");
 
     Log.i(TAG, entriesString);
 
     try {
-      if (changed.equals("false") &&
+      if (changed &&
         fileExists(resolve(indexPath, ".lock"))) {
         indexLockfile.rollback();
       }
@@ -477,9 +478,11 @@ public class WebAppInterface {
         writeToIndex(header.array());
 
         ByteBuffer bb;
-        int statField, pathEnd;
+        int statField;
+        int pathEnd;
         int flags;
-        String path, padding;
+        String path;
+        String padding;
 
         for (int i = 0; i < entries.length; i++) {
           for (int x = 0; x < 10; x++) {
@@ -519,11 +522,12 @@ public class WebAppInterface {
 
         finishWritingIndex();
 
-        changed = "false";
+        changed = false;
       } else {
         return "{\"error\":\"Could not get lock on file " + indexPath + ".\"}";
       }
     } catch (IOException | SecurityException | FileAlreadyExistsException | FileNotFoundException | StaleLockException | java.security.NoSuchAlgorithmException | Exception err) {
+      indexLockfile = null;
       return "{\"error\":\"" + err.toString().replace("\"", "'") + " @ " + stackToString(err.getStackTrace()) + "\"}";
     }
 
@@ -556,14 +560,14 @@ public class WebAppInterface {
         cksum.update(rawEnts[i].getBytes());
       }
 
-      if (bytesToHex(cksum.digest()).equals(digest) == false) {
-        return "false";
+      if (bytesToHex(cksum.digest()).equals(digest)) {
+        return "true";
       }
     } catch (java.security.NoSuchAlgorithmException err) {
       return "{\"error\":\"" + err.getMessage() + "\"}";
     }
 
-    return "true";
+    return "false";
   }
 
   public String stackToString (StackTraceElement[] st) {
@@ -588,11 +592,13 @@ public class WebAppInterface {
     }
 
     public boolean holdForUpdate () throws IOException {
+      RandomAccessFile raf = null;
+
       try {
         if (lock == null) {
           Path path = Files.createFile(Paths.get(lockPath));
 
-          RandomAccessFile raf = new RandomAccessFile(path.toString(), "rw");
+          raf = new RandomAccessFile(path.toString(), "rw");
 
           lock = raf.getChannel().lock();
           fos = new FileOutputStream(raf.getFD());
