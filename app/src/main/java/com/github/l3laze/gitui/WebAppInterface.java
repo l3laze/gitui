@@ -15,6 +15,7 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.nio.file.Path;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.channels.FileLock;
 import java.nio.file.FileAlreadyExistsException;
 
@@ -28,12 +29,16 @@ import android.os.Environment;
 import android.system.*;
 import android.util.Base64;
 
+import android.util.Log;
+
 public class WebAppInterface {
   protected static Context mContext;
   protected static AssetManager assetManager;
   protected static boolean storagePermission = false;
   protected static Lockfile indexLockfile;
   protected MessageDigest indexDigest;
+
+  protected static String TAG = "WebAppInterface";
 
   WebAppInterface(Context c) {
     setInterface(c.getApplicationContext());
@@ -89,7 +94,11 @@ public class WebAppInterface {
 
   @JavascriptInterface
   public static String relativize(String from, String to) {
-    return Paths.get(from).relativize(Paths.get(to)).toString();
+    try {
+      return Paths.get(from).relativize(Paths.get(to)).toString();
+    } catch (Exception err) {
+      return "{\"error\":\"" + err.toString() + "\"}";
+    }
   }
 
   @JavascriptInterface
@@ -99,7 +108,7 @@ public class WebAppInterface {
 
   @JavascriptInterface
   public static String getAbsolutePath(String path) {
-    return new File(path).getAbsolutePath();
+    return java.nio.file.FileSystems.getDefault().getPath(path).normalize().toAbsolutePath().toString();
   }
 
   @JavascriptInterface
@@ -258,6 +267,19 @@ public class WebAppInterface {
   }
 
   @JavascriptInterface
+  public static String readFileAsHex(String path) {
+    String data;
+
+    try {
+      data = bytesToHex(Files.readAllBytes(Paths.get(path)));
+    } catch (IOException err) {
+      return "{\"error\":\"" + err.toString() + "\"}";
+    }
+
+    return data;
+  }
+
+  @JavascriptInterface
   public static String homeFolder() {
     return Environment.getExternalStorageDirectory().getAbsolutePath();
   }
@@ -359,11 +381,23 @@ public class WebAppInterface {
     }
   }
 
+  @JavascriptInterface
   public static String bytesToHex(byte[] a) {
     StringBuilder sb = new StringBuilder(a.length * 2);
 
     for (byte b: a) {
       sb.append(String.format("%02x", b));
+    }
+
+    return sb.toString();
+  }
+
+  @JavascriptInterface
+  public static String hexToString(String h) {
+    StringBuilder sb = new StringBuilder(h.length() / 2);
+
+    for (int i = 0; i < h.length();  i++) {
+      sb.append((char) Integer.parseInt(h, 16));
     }
 
     return sb.toString();
@@ -415,9 +449,14 @@ public class WebAppInterface {
   }
 
   @JavascriptInterface
-  public String updateIndex (String indexPath, String[] entries, String changed) {
+  public String updateIndex (String indexPath, String entriesString, String changed) {
+    String[] entries = entriesString.split(",");
+
+    Log.i(TAG, entriesString);
+
     try {
-      if (changed.equals("false")) {
+      if (changed.equals("false") &&
+        fileExists(resolve(indexPath, ".lock"))) {
         indexLockfile.rollback();
       }
 
@@ -426,19 +465,56 @@ public class WebAppInterface {
       if (indexLockfile.holdForUpdate()) {
         beginWritingIndex();
 
-        int indexVersion = new Long(2).intValue();
-        int numEntries = new Long(entries.length).intValue();
+        int indexVersion = Integer.parseUnsignedInt("" + 2);
+        int numEntries = Integer.parseUnsignedInt("" + entries.length);
 
         ByteBuffer header = ByteBuffer.allocate(12);
 
         header.put("DIRC".getBytes());
         header.putInt(indexVersion);
         header.putInt(numEntries);
-
+        
         writeToIndex(header.array());
 
+        ByteBuffer bb;
+        int statField, pathEnd;
+        int flags;
+        String path, padding;
+
         for (int i = 0; i < entries.length; i++) {
-          writeToIndex(entries[i].getBytes());
+          for (int x = 0; x < 10; x++) {
+            bb = ByteBuffer.allocate(4);
+
+            String sf = entries[i].substring(x * 8, x * 8 + 8);
+
+            Log.i(TAG, sf);
+
+            statField = Integer.parseUnsignedInt(sf, 16);
+
+            Log.i(TAG, "" + statField);
+
+            bb.putInt(statField);
+
+            writeToIndex(bb.array());
+          }
+
+          writeToIndex(entries[i].substring(80, 120).getBytes());
+
+          flags = Integer.parseUnsignedInt(entries[i].substring(120, 124), 16);
+
+          bb = ByteBuffer.allocate(2);
+          bb.putShort((short) flags);
+
+          writeToIndex(bb.array());
+
+          pathEnd = entries[i].indexOf((char) 0, 124); 
+          path = entries[i].substring(124, pathEnd);
+
+          writeToIndex(path.getBytes());
+
+          padding = entries[i].substring(pathEnd + 1);
+
+          writeToIndex(padding.getBytes());
         }
 
         finishWritingIndex();
@@ -447,8 +523,8 @@ public class WebAppInterface {
       } else {
         return "{\"error\":\"Could not get lock on file " + indexPath + ".\"}";
       }
-    } catch (IOException | SecurityException | FileAlreadyExistsException | FileNotFoundException | StaleLockException | java.security.NoSuchAlgorithmException err) {
-      return "{\"error\":\"" + err.getMessage() + "\"}";
+    } catch (IOException | SecurityException | FileAlreadyExistsException | FileNotFoundException | StaleLockException | java.security.NoSuchAlgorithmException | Exception err) {
+      return "{\"error\":\"" + err.toString().replace("\"", "'") + " @ " + stackToString(err.getStackTrace()) + "\"}";
     }
 
     return "{\"changed\":\"" + changed + "\"}";
@@ -488,6 +564,16 @@ public class WebAppInterface {
     }
 
     return "true";
+  }
+
+  public String stackToString (StackTraceElement[] st) {
+    StringBuffer sb = new StringBuffer();
+
+    for(int i = 0; i < st.length; i++) {
+      sb.append(st[i].toString() + "\\n");
+    }
+
+    return sb.toString();
   }
 
   protected class Lockfile {

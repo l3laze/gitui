@@ -285,6 +285,18 @@ const fs = {
     }
   },
 
+  readFileAsHex: async function readFileAsHex (path) {
+    if (Android.havePermission()) {
+      const result = await Android.readFileAsHex(path)
+
+      if (result.indexOf('"error') !== -1) {
+        throw new Error(JSON.parse(result).error)
+      }
+
+      return result
+    }
+  },
+
   writeFile: async function writeFile (path, data) {
     if (Android.havePermission()) {
       await Android.writeFile(path, data)
@@ -388,6 +400,8 @@ const zlib = {
 
 const util = {
   gitify: function gitify (header, object) {
+    // setStatus(`object = ${object}`)
+
     const string = object.toString()
 
     return `${header} ${string.length}\0${string}`
@@ -412,8 +426,11 @@ function workspace (pathArg) {
       p = pathname
     }
 
-    const listing = (await fs.readdir(p))
-      .filter((e) => IGNORE.indexOf(e) === -1)
+    const result = await fs.readdir(p)
+
+    // setStatus(result)
+
+    const listing = result.filter((e) => IGNORE.indexOf(e) === -1)
 
     let list = []
     let filePath
@@ -455,9 +472,13 @@ function workspace (pathArg) {
 
   return {
     pathname,
+    base,
     listFiles,
     readFile: async function readFile (f) {
-      return await fs.readFile(path.join(pathname, f))
+      return await fs.readFile(f)
+    },
+    statFile: async function statFile (f) {
+      return await fs.stat(f)
     }
   }
 }
@@ -731,21 +752,21 @@ function refs (pathname) {
 
 function index (p) {
   const indexPath = p
-  const entryFields = [
-    'ctime',
-    'ctime_nsec',
-    'mtime',
-    'mtime_nsec',
-    'dev',
-    'ino',
-    'mode',
-    'uid',
-    'gid',
-    'size',
-    'oid',
-    'flags',
-    'path'
-  ]
+  const entryFields = {
+    ctime: 'ctimeMs',
+    ctime_nsec: '',
+    mtime: 'mtimeMs',
+    mtime_nsec: '',
+    dev: 'dev',
+    ino: 'ino',
+    mode: 'mode',
+    uid: 'uid',
+    gid: 'gid',
+    size: 'size',
+    oid: '',
+    flags: '',
+    path: ''
+  }
 
   let entries = {}
   let changed = false
@@ -758,11 +779,13 @@ function index (p) {
     const MAX_PATH_SIZE = 0xfff
 
     const mode = stat.executable ? EXE_MODE : REG_MODE
-    const flags = Math.min(targetPath.length, MAX_PATH_SIZE)
+    const flags = ((2 << 8) >>> 0) | Math.min(targetPath.length, MAX_PATH_SIZE)
+
+    // setStatus(['createEntry', targetPath, oid, JSON.stringify(stat)].join(', '))
 
     const obj = {}
 
-    for (const e of entryFields) {
+    for (const e of Object.keys(entryFields)) {
       if (e === 'mode') {
         obj.mode = mode
       } else if (e === 'oid') {
@@ -771,32 +794,70 @@ function index (p) {
         obj.flags = flags
       } else if (e === 'path') {
         obj.path = targetPath
-      } else if (typeof stat[e] !== 'undefined') {
-        obj[e] = stat[e]
+      } else if (e === 'ctime_nsec' || e === 'mtime_nsec') {
+        obj[e] = 0
+      } else {
+        obj[e] = stat[entryFields[e]]
       }
     }
 
-    obj.toString = function () {
+    function toString () {
       let result = ''
+      let single
 
-      for (const e of entryFields) {
-        result += this[e]
+      for (const e of Object.keys(entryFields).slice(0, 10)) {
+        single = toHex(parseInt(obj[e]) >>> 0, 8)
+
+        result += single
+
+        // setStatus([e, single, parseInt(obj[e]) >>> 0].join(','))
       }
 
-      result += '\0'
+      result += obj.oid
+
+      // setStatus(['oid', '=', obj.oid].join(' '))
+
+      const fl = toHex(parseInt(obj.flags), 4)
+
+      // setStatus(['flags', fl, obj.flags].join(','))
+
+      result += fl
+
+      result += obj.path
+
+      // setStatus('path = ' + obj.path)
+
+      let padding = '\0'
 
       do {
-        result += '\0'
-      } while (result.length % ENTRY_BLOCK !== 0)
+        padding += '\0'
+      } while ((padding.length + result.length) % ENTRY_BLOCK !== 0)
 
-      return result
+      // setStatus('toString.padding = ' + padding.length)
+
+      // setStatus('toString.length = ' + (result.length + padding.length))
+
+      return result + padding
     }
 
-    obj.key = function () {
-      return targetPath
+    return {
+      stat: {
+        ctime: obj.ctime,
+        ctime_nsec: 0,
+        mtime: obj.mtime,
+        mtime_nsec: 0,
+        dev: obj.dev,
+        ino: obj.ino,
+        mode: obj.mode,
+        uid: obj.uid,
+        gid: obj.gid,
+        size: obj.size
+      },
+      oid: obj.oid,
+      flags: obj.flags,
+      path: obj.path,
+      toString
     }
-
-    return obj
   }
 
   async function add (p, oid, stat) {
@@ -808,16 +869,15 @@ function index (p) {
   }
 
   async function loadIndex () {
-    const HEADER_SIZE = 12
-
     entries = {}
     changed = false
 
     if (await fs.exists(indexPath) && await Android.beginLoadingIndex(indexPath)) {
-      const data = await fs.readFile(indexPath)
-      const entryCount = readIndexHeader(data)
-      const rawEntries = readIndexEntries(data.slice(HEADER_SIZE - 1), entryCount)
-      const result = await Android.verifyChecksum(rawEntries, data.slice(-20))
+      const data = await fs.readFileAsHex(indexPath)
+      const entryCount = readIndexHeader(data.slice(0, 24))
+      const rawEntries = readIndexEntries(data.slice(24, -40), entryCount)
+
+      const result = await Android.verifyChecksum(rawEntries, data.slice(-40))
 
       if (result.indexOf('error"') > -1) {
         throw new Error(JSON.parse(result).error)
@@ -825,13 +885,48 @@ function index (p) {
     }
   }
 
+  function toHex (o, padTo = 0) {
+    let h
+
+    if (typeof o === 'number') {
+      h = o.toString(16)
+    } else if (typeof o === 'string') {
+      h = o.split('')
+        .map((c) => c.charCodeAt().toString(16))
+        .join('')
+    } else {
+      throw new Error('toHex can only convert from number or string.')
+    }
+
+    while (h.length < padTo) {
+      h = '0' + h
+    }
+
+    return h
+  }
+
+  function hexToString (h) {
+    let string = ''
+
+    for (let x = 0; x < h.length; x++) {
+      string += String.fromCharCode(
+        parseInt(h[x] + '' + h[x + 1], 16))
+      x++
+    }
+
+    return string
+  }
+
   function readIndexHeader (data) {
     const SIGNATURE = 'DIRC'
     const VERSION = 2
 
-    const sig = data.slice(0, 3)
-    const ver = data.slice(4, 7)
-    const count = data.slice(8, 11)
+    const sig = hexToString(data.slice(0, 8))
+
+    const ver = parseInt(data.slice(8, 16))
+    const count = parseInt(data.slice(16, 24))
+
+    // setStatus([sig, ver, count].join(', '))
 
     if (sig !== SIGNATURE) {
       throw new Error(`Index signature mismatch. Expected ${SIGNATURE}, found ${sig}.`)
@@ -843,54 +938,94 @@ function index (p) {
   }
 
   function readIndexEntries (data, count) {
-    const ENTRY_MIN_SIZE = 64
-
-    let entry
     const rawEntries = []
 
-    for (let i = 0; i < count; i++) {
-      entry = data.slice(0, ENTRY_MIN_SIZE - 1)
-      data = data.slice(ENTRY_MIN_SIZE - 1)
+    let entry
+    let u32
+    let offset = 0
+    let entryLength
 
-      while (entry[entry.length - 1] !== '\0') {
-        entry += data.slice(0, ENTRY_BLOCK)
-        data = data.slice(ENTRY_BLOCK)
+    setStatus('---- Parsing Index ----')
+
+    setStatus(hexViewFormat(data))
+
+    for (let i = 0; i < count; i++) {
+      entry = {
+        stat: {}
       }
 
-      rawEntries.push(entry)
+      entryLength = 0
 
-      entry = parseEntry(entry)
+      // setStatus(data.substring(offset))
 
-      entries[entry.key] = entry
+      for (const x of Object.keys(entryFields).slice(0, 10)) {
+        u32 = parseInt(data.substring(offset, offset + 8), 16) >>> 0
+
+        entry.stat[x] = u32
+        offset += 8
+        entryLength += 4
+
+        // setStatus([x, '=', u32].join(' '))
+      }
+
+      entry.oid = hexToString(data.substring(offset, offset + 80))
+      offset += 80
+      entryLength += 20
+
+      entry.flags = parseInt(data.substring(offset, offset + 4), 16) >>> 0
+      offset += 4
+      entryLength += 2
+
+      let nextHex = data.substring(offset, offset + 2)
+      offset += 2
+      entryLength++
+
+      entry.path = ''
+
+      while (nextHex !== '00') {
+        // setStatus(['next', nextHex, 'offset', offset].join(', '))
+
+        entry.path += hexToString(nextHex)
+
+        nextHex = data.substring(offset, offset + 2)
+
+        offset += 2
+        entryLength++
+      }
+
+      offset += 4
+      entryLength++
+
+      let parsedPadding = 0
+
+      do {
+        offset += 2
+        entryLength++
+
+        // eslint-disable-next-line no-unused-vars
+        parsedPadding++
+      } while (entryLength % 8 !== 0)
+
+      // setStatus('parsedPadding = ' + parsedPadding)
+      // setStatus('entryLength = ' + entryLength)
+
+      setStatus(JSON.stringify(entry))
+
+      entry = createEntry(entry.path, entry.oid, entry.stat)
+
+      const raw = entry.toString()
+
+      rawEntries.push(raw)
+
+      entries[entry.path] = entry
     }
 
     return rawEntries
   }
 
-  function parseEntry (entry) {
-    const keys = entryFields.slice(0, -1)
-    const ent = {
-      stat: {}
-    }
-
-    for (let i = 0; i < 10; i++) {
-      ent.stat[keys[i]] = entry.slice(0, 3)
-      entry = entry.slice(0, 3)
-    }
-
-    ent.oid = entry.slice(0, 19)
-    entry = entry.slice(0, 19)
-
-    ent.flags = entry.slice(0, 2)
-    entry = entry.slice(0, 2)
-
-    ent.path = entry.slice(0, entry.indexOf('\0'))
-
-    return createEntry(ent.path, ent.oid, ent.stat)
-  }
-
   return {
     pathTo: indexPath,
+    entries,
     changed,
     createEntry,
     add,
@@ -938,7 +1073,7 @@ function jit (repoPath) {
         continue
       }
 
-      const data = await workspaceObj.readFile(files[i])
+      const data = await workspaceObj.readFile(path.join(workspacePath, files[i]))
 
       const blobObj = blob(data)
 
@@ -977,31 +1112,57 @@ function jit (repoPath) {
     setStatus(`[${isRoot}${commitObj.oid}] ${message.split('\n').slice(0, 1)}`)
   }
 
-  async function add (targets) {
-    let files, data, stat, blob
+  async function add (...targets) {
+    let files, data, stat, blobObj
 
-    for (let t of targets) {
-      t = path.getAbsoluePath(t)
+    for (const t of targets) {
+      // setStatus(`t = ${t}`)
 
-      files = await workspace.listFiles(t)
+      // t = path.join(workspaceObj.pathname, t)
+
+      // setStatus(`t = ${t}`)
+
+      if (await Android.isDir(t)) {
+        files = await workspaceObj.listFiles(t)
+      } else {
+        files = [t]
+      }
+
+      // setStatus(`files = ${files.join(', ')}`)
 
       for (const f of files) {
-        data = workspaceObj.readFile(f)
-        stat = workspaceObj.statFile(f)
+        // setStatus(`f = ${f}`)
 
-        blob = blob(data)
-        blob.oid = await Android.sha1Hex(util.gitify('blob', data))
+        const base = path.basename(f)
 
-        await databaseObj.store(blob)
+        let filePath = path.join(t, base)
 
-        indexObj.add(f, blob.oid, stat)
+        if (t === f) {
+          filePath = t
+        }
+
+        // setStatus(`filePath = ${filePath}`)
+
+        data = await workspaceObj.readFile(filePath)
+        stat = await workspaceObj.statFile(filePath)
+
+        blobObj = blob(data)
+        blobObj.oid = await Android.sha1Hex(util.gitify('blob', data))
+
+        await databaseObj.store('blob', blobObj)
+
+        await indexObj.add(path.relativize(workspacePath, filePath), blobObj.oid, stat)
       }
 
       const sortedEntries = Object.keys(indexObj.entries)
         .sort((a, b) => path.basename(a) < path.basename(b))
         .map((e) => indexObj.entries[e].toString())
 
-      const result = await Android.updateIndex(indexPath, sortedEntries, indexObj.changed)
+      // setStatus('indexPath = ' + indexPath + '\nentries = ' + sortedEntries.join(',') + '\nchanged = ' + indexObj.changed)
+
+      const result = await Android.updateIndex(indexPath, sortedEntries.join(','), indexObj.changed)
+
+      // setStatus(`result=${result}`)
 
       if (result.indexOf('error"') > -1) {
         throw new Error(JSON.parse(result).error)
@@ -1113,6 +1274,36 @@ function jit (repoPath) {
     setAuthor,
     catfile
   }
+}
+
+function hexViewFormat (hex) {
+  let bytes = 0
+  let output = ''
+  let line = ''
+  let text = ''
+  let ch = 0
+
+  for (let i = 0; i < hex.length; i += 2) {
+    line += hex.substring(i, i + 2) + ' '
+    ch = parseInt(hex.substring(i, i + 2), 16)
+
+    bytes++
+
+    text += (ch > 30 && ch < 128)
+      ? String.fromCharCode(ch)
+      : '.'
+
+    if (bytes === 4) {
+      line += '| '
+    } else if (bytes === 8 || i + 2 > hex.length) {
+      output += line + ' || ' + text + '\n'
+      bytes = 0
+      text = ''
+      line = ''
+    }
+  }
+
+  return output
 }
 
 /*
@@ -1423,7 +1614,7 @@ async function runTests () {
 
       await fs.writeFile(path.join(ws.pathname, filename), data)
 
-      const result = await ws.readFile(filename)
+      const result = await ws.readFile(path.join(ws.pathname, filename))
 
       if (result !== data) {
         throw new Error(`workspace.readFile('${filename}') - "${result}" !== "${data}"`)
@@ -1571,7 +1762,17 @@ async function runTests () {
       const jitObj = await jit(repoPath)
       jitObj.setAuthor('Tom @ l3l_aze')
 
-      return false
+      await fs.mkdirp(path.join(repoPath, 'dir1'))
+
+      await fs.writeFile(path.join(repoPath, 'dir1', 'hello.txt'), 'hai!')
+      await fs.writeFile(path.join(repoPath, 'hello.txt'), 'hai!')
+
+      await jitObj.add(path.join(repoPath, 'dir1'))
+      await jitObj.add(path.join(repoPath, 'hello.txt'))
+
+      await jitObj.index.loadIndex()
+
+      return true
     })
 
     await fs.rimraf(path.join(Android.homeFolder(), 'gitui-test'))
@@ -1680,16 +1881,20 @@ function reporter (tests) {
   return lines.join('\n')
 }
 
+async function test () {
+  const tests = await runTests()
+  const message = reporter(tests)
+
+  // document.getElementById('status').value = ''
+  setStatus(message)
+  toggleStatus()
+}
+
 window.addEventListener('DOMContentLoaded', async function startUp () {
   setStatus(window.location)
   // setStatus('Storage permission? ' + Android.havePermission())
 
   if (window.location.search === '?test') {
-    const tests = await runTests()
-    const message = reporter(tests)
-
-    // document.getElementById('status').value = ''
-    setStatus(message)
-    toggleStatus()
+    await test()
   }
 })
