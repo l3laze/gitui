@@ -32,13 +32,14 @@ import android.util.Base64;
 import android.util.Log;
 
 public class WebAppInterface {
-  protected static Context mContext;
-  protected static AssetManager assetManager;
-  protected static boolean storagePermission = false;
-  protected static Lockfile indexLockfile;
+  protected Context mContext;
+  protected AssetManager assetManager;
+  protected boolean storagePermission = false;
+  protected Lockfile indexLockfile;
+  protected Lockfile headLockfile;
   protected MessageDigest indexDigest;
 
-  protected static String TAG = "WebAppInterface";
+  protected String TAG = "WebAppInterface";
 
   WebAppInterface(Context c) {
     setInterface(c.getApplicationContext());
@@ -48,8 +49,22 @@ public class WebAppInterface {
     mContext = c;
   }
 
+  public String errorToJson (Exception err) {
+    return "{\"error\":\"" + err.toString().replace("\"", "'") + " @ " + stackToString(err.getStackTrace()) + "\"}";
+  }
+
   @JavascriptInterface
-  public static String toJSON(String[] obj) {
+  public String heapInfo () {
+    final Runtime runtime = Runtime.getRuntime();
+    final long usedMemInMB=(runtime.totalMemory() - runtime.freeMemory()) / 1048576L;
+    final long maxHeapSizeInMB=runtime.maxMemory() / 1048576L;
+    final long availHeapSizeInMB = maxHeapSizeInMB - usedMemInMB;
+
+    return usedMemInMB + "MB used/" + maxHeapSizeInMB + "MB max (" + availHeapSizeInMB + "MB avail.)";
+  }
+
+  @JavascriptInterface
+  public String toJSON(String[] obj) {
     StringBuilder sb = new StringBuilder();
 
     sb.append("{");
@@ -68,60 +83,60 @@ public class WebAppInterface {
   }
 
   @JavascriptInterface
-  public static boolean havePermission() {
+  public boolean havePermission() {
     return storagePermission;
   }
 
   @JavascriptInterface
-  public static int androidVersion() {
+  public int androidVersion() {
     return android.os.Build.VERSION.SDK_INT;
   }
 
   @JavascriptInterface
-  public static void showToast(String text) {
+  public void showToast(String text) {
     Toast.makeText(mContext, text, Toast.LENGTH_SHORT).show();
   }
 
   @JavascriptInterface
-  public static void copyToClipboard(String text) {
-    MainActivity.getInstance().copyTextToClipboard(text);
+  public void copyToClipboard(String text) {
+    ((MainActivity) mContext).copyTextToClipboard(text);
   }
 
   @JavascriptInterface
-  public static String normalize(String path) {
+  public String normalize(String path) {
     return Paths.get(path).normalize().toString();
   }
 
   @JavascriptInterface
-  public static String relativize(String from, String to) {
+  public String relativize(String from, String to) {
     try {
       return Paths.get(from).relativize(Paths.get(to)).toString();
     } catch (Exception err) {
-      return "{\"error\":\"" + err.toString() + "\"}";
+      return errorToJson(err);
     }
   }
 
   @JavascriptInterface
-  public static String resolve(String path, String other) {
+  public String resolve(String path, String other) {
     return Paths.get(path).resolve(other).toString();
   }
 
   @JavascriptInterface
-  public static String getAbsolutePath(String path) {
+  public String getAbsolutePath(String path) {
     return java.nio.file.FileSystems.getDefault().getPath(path).normalize().toAbsolutePath().toString();
   }
 
   @JavascriptInterface
-  public static String dirname(String path) {
+  public String dirname(String path) {
     return new File(path).getParentFile().getAbsolutePath();
   }
 
   @JavascriptInterface
-  public static String basename(String path) {
+  public String basename(String path) {
     return new File(path).getName();
   }
 
-  public static String buildStats(StructStat stats) {
+  public String buildStats(StructStat stats) {
     StringBuilder sb = new StringBuilder();
     sb.append("{");
     sb.append("\"dev\":" + stats.st_dev);
@@ -143,7 +158,7 @@ public class WebAppInterface {
     return sb.toString();
   }
 
-  public static String getExplanation(String errName, String context, String path) {
+  public String getExplanation(String errName, String context, String path) {
     StringBuilder sb = new StringBuilder();
 
     if (errName.equals("ENOENT")) {
@@ -162,48 +177,48 @@ public class WebAppInterface {
   }
 
   @JavascriptInterface
-  public static String stat(String path) {
+  public String stat(String path) {
     try {
       return buildStats(android.system.Os.stat(path));
     } catch (ErrnoException ee) {
       String name = android.system.OsConstants.errnoName(ee.errno);
 
-      return "{\"error (" + name + ")\": " + getExplanation(name, "stat", path) + "\"}";
+      return "{\"error (" + name + ")\": " + getExplanation(name, "stat", path) + " @ " + stackToString(ee.getStackTrace()) + "\"}";
     }
   }
 
   @JavascriptInterface
-  public static boolean isFile(String path) {
+  public boolean isFile(String path) {
     return new File(path).isFile();
   }
 
   @JavascriptInterface
-  public static boolean isDir(String path) {
+  public boolean isDir(String path) {
     return new File(path).isDirectory();
   }
 
   @JavascriptInterface
-  public static boolean fileExists(String path) {
+  public boolean fileExists(String path) {
     return new File(path).exists();
   }
 
   @JavascriptInterface
-  public static void makeDirectory(String path) {
+  public void makeDirectory(String path) {
     new File(path).mkdir();
   }
 
   @JavascriptInterface
-  public static void makeDirectoryTree(String path) {
+  public void makeDirectoryTree(String path) {
     new File(path).mkdirs();
   }
 
   @JavascriptInterface
-  public static void delete(String path) {
+  public void delete(String path) {
     new File(path).delete();
   }
 
   @JavascriptInterface
-  public static void rimraf(String path) {
+  public void rimraf(String path) {
     File dir = new File(path);
 
     if (dir.isDirectory()) {
@@ -224,77 +239,77 @@ public class WebAppInterface {
   }
 
   @JavascriptInterface
-  public static String readDir(String path) {
+  public String readDir(String path) {
     try {
       return String.join(",", new File(path).list());
     } catch (SecurityException err) {
-      return "{\"error\":\"" + err.toString() + "\"}";
+      return errorToJson(err);
     }
   }
 
   @JavascriptInterface
-  public static String sizeOnDisk(String path) {
+  public String sizeOnDisk(String path) {
     return new File(path).length() + "";
   }
 
   @JavascriptInterface
-  public static void move(String source, String target) {
+  public void move(String source, String target) {
     new File(source).renameTo(new File(target));
   }
 
   @JavascriptInterface
-  public static String writeFile(String path, String data) {
+  public String writeFile(String path, String data) {
     try {
       Files.write(Paths.get(path), data.getBytes());
     } catch (IOException err) {
-      return "{\"error\":\"" + err.toString() + "\"}";
+      return errorToJson(err);
     }
 
     return "{}";
   }
 
   @JavascriptInterface
-  public static String readFile(String path) {
+  public String readFile(String path) {
     String data;
 
     try {
       data = new String(Files.readAllBytes(Paths.get(path)));
     } catch (IOException err) {
-      return "{\"error\":\"" + err.toString() + "\"}";
+      return errorToJson(err);
     }
 
     return data;
   }
 
   @JavascriptInterface
-  public static String readFileAsHex(String path) {
+  public String readFileAsHex(String path) {
     String data;
 
     try {
       data = bytesToHex(Files.readAllBytes(Paths.get(path)));
     } catch (IOException err) {
-      return "{\"error\":\"" + err.toString() + "\"}";
+      return errorToJson(err);
     }
 
     return data;
   }
 
   @JavascriptInterface
-  public static String homeFolder() {
+  public String homeFolder() {
     return Environment.getExternalStorageDirectory().getAbsolutePath();
   }
 
   @JavascriptInterface
-  public static String pwd() {
+  public String pwd() {
     return System.getProperty("user.dir");
   }
 
   @JavascriptInterface
-  public static String copyAssets(String path) {
+  public String copyAssets(String path) {
     File targetFolder;
 
     try {
-      targetFolder = new File(MainActivity.getInstance().webAppInterface.homeFolder());
+      targetFolder = new File(homeFolder());
 
       assetManager = mContext.getAssets();
       String sources[] = assetManager.list(path);
@@ -315,11 +330,11 @@ public class WebAppInterface {
 
       return targetFolder.toString() + "/gitui";
     } catch (IOException err) {
-      return "{\"error\":\"" + err.toString() + "\"}";
+      return errorToJson(err);
     }
   }
 
-  private static String copyAssetFileToFolder(String fullAssetPath, File targetBasePath) throws IOException {
+  private String copyAssetFileToFolder(String fullAssetPath, File targetBasePath) throws IOException {
     InputStream in = assetManager.open(fullAssetPath);
     File outFile = new File(targetBasePath, fullAssetPath);
     OutputStream out = new FileOutputStream(outFile);
@@ -328,20 +343,23 @@ public class WebAppInterface {
     int read;
     long total = 0;
 
-    while ((read = in .read(buffer)) != -1) {
+    while ((read = in.read(buffer)) != -1) {
       out.write(buffer, 0, read);
       total += read;
     }
 
-    in.close();
     out.flush();
+
+    in.close();
     out.close();
+
+    Log.i(TAG, "Closed IO for copyAssetFileToFolder.");
 
     return "" + total;
   }
 
   @JavascriptInterface
-  public static String zlibDeflate(String input) {
+  public String zlibDeflate(String input) {
     try {
       byte[] in = input.getBytes("UTF-8");
       byte result[] = new byte[in.length * 4];
@@ -356,12 +374,12 @@ public class WebAppInterface {
 
       return b64;
     } catch (IOException err) {
-      return "{\"error\":\"" + err.toString() + "\"}";
+      return errorToJson(err);
     }
   }
 
   @JavascriptInterface
-  public static String zlibInflate(String input) {
+  public String zlibInflate(String input) {
     try {
       byte[] in = Base64.decode(input, Base64.NO_WRAP);
       byte result[] = new byte[in.length * 4];
@@ -377,12 +395,12 @@ public class WebAppInterface {
 
       return out;
     } catch (IOException | java.util.zip.DataFormatException err) {
-      return "{\"error\":\"" + err.toString() + "\"}";
+      return errorToJson(err);
     }
   }
 
   @JavascriptInterface
-  public static String bytesToHex(byte[] a) {
+  public String bytesToHex(byte[] a) {
     StringBuilder sb = new StringBuilder(a.length * 2);
 
     for (byte b: a) {
@@ -393,7 +411,7 @@ public class WebAppInterface {
   }
 
   @JavascriptInterface
-  public static String hexToString(String h) {
+  public String hexToString(String h) {
     StringBuilder sb = new StringBuilder(h.length() / 2);
 
     for (int i = 0; i < h.length();  i++) {
@@ -404,7 +422,7 @@ public class WebAppInterface {
   }
 
   @JavascriptInterface
-  public static String sha1Hex(String data) {
+  public String sha1Hex(String data) {
     try {
       MessageDigest digest = MessageDigest.getInstance("SHA-1");
 
@@ -413,25 +431,27 @@ public class WebAppInterface {
 
       return bytesToHex(digestBytes);
     } catch (java.io.UnsupportedEncodingException | java.security.NoSuchAlgorithmException err) {
-      return "{\"error\":\"" + err.toString() + "\"}";
+      return errorToJson(err);
     }
   }
 
   @JavascriptInterface
   public String updateHead (String headPath, String oid) {
     try {
-      Lockfile headLockfile = new Lockfile(headPath);
+      headLockfile = new Lockfile(headPath);
 
       if (headLockfile.holdForUpdate()) {
         headLockfile.write(oid.getBytes());
         headLockfile.commit();
         return "{}";
       }
-
-      return "{\"error\":\"Could not get lock on file " + headPath + ".\"}";
     } catch (IOException | SecurityException | FileAlreadyExistsException | FileNotFoundException | StaleLockException err) {
-      return "{\"error\":\"" + err.getMessage() + "\"}";
+      headLockfile = null;
+
+      return errorToJson(err);
     }
+
+    return "{\"error\":\"Could not get lock on file " + headPath + ".\"}";
   }
 
   protected void beginWritingIndex () throws java.security.NoSuchAlgorithmException, IOException, StaleLockException {
@@ -528,7 +548,8 @@ public class WebAppInterface {
       }
     } catch (IOException | SecurityException | FileAlreadyExistsException | FileNotFoundException | StaleLockException | java.security.NoSuchAlgorithmException | Exception err) {
       indexLockfile = null;
-      return "{\"error\":\"" + err.toString().replace("\"", "'") + " @ " + stackToString(err.getStackTrace()) + "\"}";
+
+      return errorToJson(err);
     }
 
     return "{\"changed\":\"" + changed + "\"}";
@@ -547,7 +568,9 @@ public class WebAppInterface {
 
       return "{\"error\":\"Could not get lock on file " + indexPath + ".\"}";
     } catch (StaleLockException | IOException err) {
-      return "{\"error\":\"" + err.getMessage() + "\"}";
+      indexLockfile = null;
+
+      return errorToJson(err);
     }
   }
 
@@ -564,7 +587,7 @@ public class WebAppInterface {
         return "true";
       }
     } catch (java.security.NoSuchAlgorithmException err) {
-      return "{\"error\":\"" + err.getMessage() + "\"}";
+      return errorToJson(err);
     }
 
     return "false";
@@ -629,6 +652,8 @@ public class WebAppInterface {
       new File(lockPath).renameTo(new File(filePath));
 
       lock = null;
+
+      Log.i(TAG, "Closed IO for Lockfile.commit.");
     }
 
     public void raiseOnStaleLock () throws StaleLockException {
@@ -645,6 +670,8 @@ public class WebAppInterface {
       new File(lockPath).delete();
 
       lock = null;
+
+      Log.i(TAG, "Closed IO for Lockfile.rollbqck.");
     }
   }
 

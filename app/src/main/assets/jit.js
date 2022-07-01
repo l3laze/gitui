@@ -1,6 +1,6 @@
 'use strict'
 
-/* global Android, pullToRefresh, ptrAnimatesMaterial, addInit, addImport, event */
+/* global Android, addInit, addImport, event */
 /* eslint no-undef: "error" */
 
 function setStatus (text) {
@@ -25,19 +25,8 @@ function capture (msg, source, line, column, err) {
 window.onerror = capture
 
 /*
- * UI event handlers
+ * UI functionality
  */
-
-pullToRefresh({
-  container: document.querySelector('.container'),
-  animates: ptrAnimatesMaterial,
-
-  refresh () {
-    setTimeout(function () {
-      window.location.search = ''
-    }, 750)
-  }
-})
 
 // eslint-disable-next-line no-unused-vars
 function initCustomization () {
@@ -223,7 +212,7 @@ function openTab (which, whatClass, btnClass) {
   event.target.classList.add('w3-black')
 }
 
-window.onclick = function clickWin (event) {
+function clickWin (event) {
   if (event.target.className.indexOf('w3-modal') > -1) {
     cancelModal()
   }
@@ -258,6 +247,17 @@ function collapseStatus () {
     toggleStatus()
   }
 }
+
+function unloading () {
+  window.removeEventListener('error', capture)
+  window.removeEventListener('unload', unloading)
+  window.removeEventListener('click', clickWin)
+  // window.location = 'about:blank'
+}
+
+window.addEventListener('unload', unloading)
+
+window.addEventListener('click', clickWin)
 
 /*
  *
@@ -397,6 +397,12 @@ const zlib = {
     return result
   }
 }
+
+/*
+ *
+ * Utilities
+ *
+ */
 
 const util = {
   gitify: function gitify (header, object) {
@@ -614,9 +620,10 @@ function entry (n, o, s) {
   }
 
   function parentDirs () {
-    const dir = this.name.split('/')
-      .slice(0, -1)
-      .join('/')
+    const dir = this.name.substring(
+      0,
+      this.name.lastIndexOf('/')
+    )
 
     // setStatus(`name=${this.name} dir=${dir}`)
 
@@ -672,7 +679,8 @@ function tree (e) {
       if (typeof entries[path.basename(parents)] === 'undefined') {
         entries[path.basename(parents)] = tree()
 
-        entry.name = entry.name.split('/').slice(1).join('/')
+        entry.name = entry.name.substring(
+          entry.name.indexOf('/') + 1)
 
         entries[path.basename(parents)].addEntry(parents.split('/').slice(1).join('/'), entry)
       }
@@ -905,10 +913,10 @@ function index (p) {
     const SIGNATURE = 'DIRC'
     const VERSION = 2
 
-    const sig = hexToString(data.slice(0, 8))
+    const sig = hexToString(data.substring(0, 8))
 
-    const ver = parseInt(data.slice(8, 16))
-    const count = parseInt(data.slice(16, 24))
+    const ver = parseInt(data.substring(8, 16))
+    const count = parseInt(data.substring(16, 24))
 
     // setStatus([sig, ver, count].join(', '))
 
@@ -1283,7 +1291,8 @@ function jit (repoPath) {
  *
  */
 
-async function runTests () {
+function testFramework () {
+  let startTime = 0
   const tests = []
   const _test = async function _test (name, testFunc, flags) {
     let result = false
@@ -1351,7 +1360,121 @@ async function runTests () {
     test.title(text, function () {})
   }
 
-  window.startTime = Date.now()
+  function testReport (t) {
+    const check = '+'
+    const cross = 'x'
+    const dash = '-'
+
+    const result = {
+      text: '',
+      skipped: 0,
+      total: 0,
+      passed: 0,
+      optional: 0
+    }
+
+    if (t.skip) {
+      result.text = (dash + ' ' + t.name)
+
+      result.skipped++
+    } else if (t.result || (!t.result && t.flags.fails)) {
+      result.text = (check + ' ' + t.name)
+
+      result.passed++
+      result.total++
+    } else {
+      result.text = (cross + ' ' + t.name)
+
+      if (t.flags.optional) {
+        result.optional++
+      } else {
+        result.total++
+      }
+    }
+
+    return result
+  }
+
+  function errorReport (t) {
+    return `${
+      t.error.stack.split('\n')
+        .map((s, i) => '  ' + s).join('\n')
+    }`
+  }
+
+  function reporter () {
+    const check = '+'
+    const cross = 'x'
+    const dash = '-'
+    const lines = []
+
+    let skipped = 0
+    let total = 0
+    let passed = 0
+    let optional = 0
+    let nextLine = ''
+    let result
+
+    for (const t of tests) {
+      if (typeof t.title !== 'undefined') {
+        lines.push('_'.repeat(t.title.length))
+        lines.push(t.title)
+        nextLine = '  '
+      } else {
+        result = testReport(t)
+
+        lines.push(nextLine + result.text)
+
+        skipped += result.skipped
+        total += result.total
+        passed += result.passed
+        optional += result.optional
+      }
+
+      if (typeof t.error !== 'undefined') {
+        lines.push(nextLine + errorReport(t))
+      }
+    }
+
+    lines.push('\n-------\n')
+
+    if (optional > 0) {
+      lines.push(cross + ' ' + optional + ' optional failure(s)')
+    }
+
+    if (skipped > 0) {
+      lines.push(dash + ' ' + skipped + ' skipped')
+    }
+
+    lines.push(check + ' ' + passed + ' passed')
+
+    const percent = ('' + ((passed / total) * 100)).substring(0, 5)
+
+    lines.push(`\n${percent}% required tests passed (${passed}/${total})`)
+
+    const elapsedMs = Date.now() - startTime
+    const elapsedTime = elapsedMs / 1000
+
+    lines.push('\nFinished in ' + elapsedTime + 's (' + elapsedMs + 'ms)')
+
+    return lines.join('\n')
+  }
+
+  function startTiming () {
+    startTime = Date.now()
+  }
+
+  return {
+    test,
+    reporter,
+    startTiming
+  }
+}
+
+async function runTests () {
+  const { test, reporter, startTiming } = testFramework()
+
+  startTiming()
 
   /*
    * -------- Testing --------
@@ -1485,65 +1608,45 @@ async function runTests () {
 
     await test('File exists', async function () {
       const result = await fs.exists(Android.homeFolder() + '/.gitui-test-file.txt')
-      await fs.delete(Android.homeFolder() + '/.gitui-test-file.txt')
 
       return result
     })
 
     await test('Rename', async function () {
-      await fs.mkdir(Android.homeFolder() + '/.gitui-test-dir')
-      await fs.rename(Android.homeFolder() + '/.gitui-test-dir', Android.homeFolder() + '/.gitui-test-folder')
-      const result = await fs.exists(Android.homeFolder() + '/.gitui-test-folder')
-      await fs.rimraf(Android.homeFolder() + '/.gitui-test-folder')
+      await fs.rename(Android.homeFolder() + '/.gitui-test-file.txt', Android.homeFolder() + '/.gitui-test.txt')
+
+      const result = await fs.exists(Android.homeFolder() + '/.gitui-test.txt')
 
       return result
     })
 
     await test('Make directory', async function () {
-      await fs.mkdir(Android.homeFolder() + '/.gitui-test-dir')
+      await fs.mkdir(Android.homeFolder() + '/.gitui-test')
 
-      return true
-    })
-
-    await test('Delete path', async function () {
-      await fs.delete(Android.homeFolder() + '/.gitui-test-dir')
-
-      return true
-    })
-
-    await test('Remove directory', async function () {
-      await fs.mkdir(Android.homeFolder() + '/.gitui-test-dir')
-      await fs.writeFile(Android.homeFolder() + '/.gitui-test-dir/.gitui-test-file.txt', 'Hello, world!')
-      const result = await fs.exists(Android.homeFolder() + '/.gitui-test-dir/.gitui-test-file.txt')
-      await fs.rimraf(Android.homeFolder() + '/.gitui-test-dir')
-
-      return result
+      return (await fs.exists(Android.homeFolder() + '/.gitui-test'))
     })
 
     await test('Read directory', async function () {
-      await fs.mkdir(Android.homeFolder() + '/.gitui-test-dir')
-      await fs.writeFile(Android.homeFolder() + '/.gitui-test-dir/.gitui-test-file1.txt', '')
-      await fs.writeFile(Android.homeFolder() + '/.gitui-test-dir/.gitui-test-file2.txt', '')
-      const result = (await fs.readdir(Android.homeFolder() + '/.gitui-test-dir'))
-      await fs.rimraf(Android.homeFolder() + '/.gitui-test-dir')
+      await fs.writeFile(Android.homeFolder() + '/.gitui-test/.gitui-test1.txt', '')
+      await fs.writeFile(Android.homeFolder() + '/.gitui-test/.gitui-test2.txt', '')
 
-      return (result.includes('.gitui-test-file1.txt') && result.includes('.gitui-test-file2.txt'))
+      const result = (await fs.readdir(Android.homeFolder() + '/.gitui-test'))
+
+      return result.includes('.gitui-test1.txt', '.gitui-test2.txt')
     })
 
     await test('Disk usage', async function () {
-      await fs.writeFile(Android.homeFolder() + '/.gitui-test-file.txt', 'Hello, world!')
-      const result = await fs.du(Android.homeFolder() + '/.gitui-test-file.txt')
-      await fs.delete(Android.homeFolder() + '/.gitui-test-file.txt')
+      const result = await fs.du(Android.homeFolder() + '/.gitui-test')
+
+      if (result.indexOf('error') !== -1) {
+        throw new Error(JSON.parse(result).error)
+      }
 
       return (result !== '')
     })
 
     await test('Can stat', async function () {
-      await fs.mkdir(Android.homeFolder() + '/.gitui-test-dir')
-      await fs.writeFile(Android.homeFolder() + '/.gitui-test-dir/.gitui-test-file1.txt', '')
-      const resultStat = (await fs.stat(Android.homeFolder() + '/.gitui-test-dir'))
-
-      await fs.rimraf(Android.homeFolder() + '/.gitui-test-dir')
+      const resultStat = (await fs.stat(Android.homeFolder() + '/.gitui-test'))
 
       if (resultStat.error) {
         throw new Error(resultStat.error)
@@ -1552,7 +1655,21 @@ async function runTests () {
       return true
     })
 
-    await fs.rimraf(Android.homeFolder() + '/.gitui-test-dir')
+    await test('Remove directory', async function () {
+      await fs.rimraf(Android.homeFolder() + '/.gitui-test')
+
+      const result = await fs.exists(Android.homeFolder() + '/.gitui-test')
+
+      return !result
+    })
+
+    await test('Delete path', async function () {
+      await fs.delete(Android.homeFolder() + '/.gitui-test.txt')
+
+      const result = await fs.exists(Android.homeFolder() + '/.gitui-test.txt')
+
+      return !result
+    })
   })
 
   /*
@@ -1749,123 +1866,23 @@ async function runTests () {
     await fs.rimraf(path.join(Android.homeFolder(), 'gitui-test'))
   })
 
-  return tests
+  return reporter()
 }
 
-function testReport (t) {
-  const check = '+'
-  const cross = 'x'
-  const dash = '-'
-
-  const result = {
-    text: '',
-    skipped: 0,
-    total: 0,
-    passed: 0,
-    optional: 0
-  }
-
-  if (t.skip) {
-    result.text = (dash + ' ' + t.name)
-
-    result.skipped++
-  } else if (t.result || (!t.result && t.flags.fails)) {
-    result.text = (check + ' ' + t.name)
-
-    result.passed++
-    result.total++
-  } else {
-    result.text = (cross + ' ' + t.name)
-
-    if (t.flags.optional) {
-      result.optional++
-    } else {
-      result.total++
-    }
-  }
-
-  return result
-}
-
-function errorReport (test) {
-  return `${
-    test.error.stack.split('\n')
-      .map((s, i) => '  ' + s).join('\n')
-  }`
-}
-
-function reporter (tests) {
-  const check = '+'
-  const cross = 'x'
-  const dash = '-'
-  const lines = []
-
-  let skipped = 0
-  let total = 0
-  let passed = 0
-  let optional = 0
-  let nextLine = ''
-  let result
-
-  for (const t of tests) {
-    if (typeof t.title !== 'undefined') {
-      lines.push('_'.repeat(t.title.length))
-      lines.push(t.title)
-      nextLine = '  '
-    } else {
-      result = testReport(t)
-
-      lines.push(nextLine + result.text)
-
-      skipped += result.skipped
-      total += result.total
-      passed += result.passed
-      optional += result.optional
-    }
-
-    if (typeof t.error !== 'undefined') {
-      lines.push(nextLine + errorReport(t))
-    }
-  }
-
-  lines.push('\n-------\n')
-
-  if (optional > 0) {
-    lines.push(cross + ' ' + optional + ' optional failure(s)')
-  }
-
-  if (skipped > 0) {
-    lines.push(dash + ' ' + skipped + ' skipped')
-  }
-
-  lines.push(check + ' ' + passed + ' passed')
-
-  const percent = ('' + ((passed / total) * 100)).substring(0, 5)
-
-  lines.push(`\n${percent}% required tests passed (${passed}/${total})`)
-
-  const elapsedMs = Date.now() - window.startTime
-  const elapsedTime = elapsedMs / 1000
-
-  lines.push('\nFinished in ' + elapsedTime + 's (' + elapsedMs + 'ms)')
-
-  return lines.join('\n')
-}
-
+// eslint-disable-next-line no-unused-vars
 async function test () {
-  const tests = await runTests()
-  const message = reporter(tests)
+  setStatus(window.location)
+  setStatus(Android.heapInfo())
 
-  // document.getElementById('status').value = ''
-  setStatus(message)
+  const status = document.getElementById('status')
+
+  if (status.value !== '') {
+    status.value = ''
+  }
+
+  const report = await runTests()
+
+  setStatus(report)
+  setStatus(Android.heapInfo())
   toggleStatus()
 }
-
-window.addEventListener('DOMContentLoaded', async function startUp () {
-  setStatus(window.location)
-  // setStatus('Storage permission? ' + Android.havePermission())
-
-  if (window.location.search === '?test') {
-    await test()
-  }
-})
