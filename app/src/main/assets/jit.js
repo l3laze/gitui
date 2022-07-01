@@ -1,6 +1,6 @@
 'use strict'
 
-/* global Android, pullToRefresh, ptrAnimatesMaterial, addInit, addImport, event */
+/* global Android, addInit, addImport, event */
 /* eslint no-undef: "error" */
 
 function setStatus (text) {
@@ -27,17 +27,6 @@ window.onerror = capture
 /*
  * UI event handlers
  */
-
-pullToRefresh({
-  container: document.querySelector('.container'),
-  animates: ptrAnimatesMaterial,
-
-  refresh () {
-    setTimeout(function () {
-      window.location.search = ''
-    }, 750)
-  }
-})
 
 // eslint-disable-next-line no-unused-vars
 function initCustomization () {
@@ -614,9 +603,10 @@ function entry (n, o, s) {
   }
 
   function parentDirs () {
-    const dir = this.name.split('/')
-      .slice(0, -1)
-      .join('/')
+    const dir = this.name.substring(
+      0,
+      this.name.lastIndexOf('/')
+    )
 
     // setStatus(`name=${this.name} dir=${dir}`)
 
@@ -672,7 +662,8 @@ function tree (e) {
       if (typeof entries[path.basename(parents)] === 'undefined') {
         entries[path.basename(parents)] = tree()
 
-        entry.name = entry.name.split('/').slice(1).join('/')
+        entry.name = entry.name.substring(
+          entry.name.indexOf('/') + 1)
 
         entries[path.basename(parents)].addEntry(parents.split('/').slice(1).join('/'), entry)
       }
@@ -905,10 +896,10 @@ function index (p) {
     const SIGNATURE = 'DIRC'
     const VERSION = 2
 
-    const sig = hexToString(data.slice(0, 8))
+    const sig = hexToString(data.substring(0, 8))
 
-    const ver = parseInt(data.slice(8, 16))
-    const count = parseInt(data.slice(16, 24))
+    const ver = parseInt(data.substring(8, 16))
+    const count = parseInt(data.substring(16, 24))
 
     // setStatus([sig, ver, count].join(', '))
 
@@ -1485,65 +1476,42 @@ async function runTests () {
 
     await test('File exists', async function () {
       const result = await fs.exists(Android.homeFolder() + '/.gitui-test-file.txt')
-      await fs.delete(Android.homeFolder() + '/.gitui-test-file.txt')
 
       return result
     })
 
     await test('Rename', async function () {
-      await fs.mkdir(Android.homeFolder() + '/.gitui-test-dir')
-      await fs.rename(Android.homeFolder() + '/.gitui-test-dir', Android.homeFolder() + '/.gitui-test-folder')
-      const result = await fs.exists(Android.homeFolder() + '/.gitui-test-folder')
-      await fs.rimraf(Android.homeFolder() + '/.gitui-test-folder')
+      await fs.rename(Android.homeFolder() + '/.gitui-test-file.txt', Android.homeFolder() + '/.gitui-test.txt')
+      const result = await fs.exists(Android.homeFolder() + '/.gitui-test.txt')
 
       return result
     })
 
     await test('Make directory', async function () {
-      await fs.mkdir(Android.homeFolder() + '/.gitui-test-dir')
+      await fs.mkdir(Android.homeFolder() + '/.gitui-test')
 
       return true
-    })
-
-    await test('Delete path', async function () {
-      await fs.delete(Android.homeFolder() + '/.gitui-test-dir')
-
-      return true
-    })
-
-    await test('Remove directory', async function () {
-      await fs.mkdir(Android.homeFolder() + '/.gitui-test-dir')
-      await fs.writeFile(Android.homeFolder() + '/.gitui-test-dir/.gitui-test-file.txt', 'Hello, world!')
-      const result = await fs.exists(Android.homeFolder() + '/.gitui-test-dir/.gitui-test-file.txt')
-      await fs.rimraf(Android.homeFolder() + '/.gitui-test-dir')
-
-      return result
     })
 
     await test('Read directory', async function () {
-      await fs.mkdir(Android.homeFolder() + '/.gitui-test-dir')
-      await fs.writeFile(Android.homeFolder() + '/.gitui-test-dir/.gitui-test-file1.txt', '')
-      await fs.writeFile(Android.homeFolder() + '/.gitui-test-dir/.gitui-test-file2.txt', '')
-      const result = (await fs.readdir(Android.homeFolder() + '/.gitui-test-dir'))
-      await fs.rimraf(Android.homeFolder() + '/.gitui-test-dir')
+      await fs.writeFile(Android.homeFolder() + '/.gitui-test/.gitui-test1.txt', '')
+      await fs.writeFile(Android.homeFolder() + '/.gitui-test/.gitui-test2.txt', '')
+      const result = (await fs.readdir(Android.homeFolder() + '/.gitui-test'))
 
-      return (result.includes('.gitui-test-file1.txt') && result.includes('.gitui-test-file2.txt'))
+      return result.includes(['.gitui-test1.txt', '.gitui-test2.txt'])
     })
 
     await test('Disk usage', async function () {
-      await fs.writeFile(Android.homeFolder() + '/.gitui-test-file.txt', 'Hello, world!')
-      const result = await fs.du(Android.homeFolder() + '/.gitui-test-file.txt')
-      await fs.delete(Android.homeFolder() + '/.gitui-test-file.txt')
+      await fs.writeFile(Android.homeFolder() + '/.gitui-test.txt', 'Hello, world!')
+      const result = await fs.du(Android.homeFolder() + '/.gitui-test.txt')
 
       return (result !== '')
     })
 
     await test('Can stat', async function () {
-      await fs.mkdir(Android.homeFolder() + '/.gitui-test-dir')
-      await fs.writeFile(Android.homeFolder() + '/.gitui-test-dir/.gitui-test-file1.txt', '')
-      const resultStat = (await fs.stat(Android.homeFolder() + '/.gitui-test-dir'))
-
-      await fs.rimraf(Android.homeFolder() + '/.gitui-test-dir')
+      await fs.mkdir(Android.homeFolder() + '/.gitui-test')
+      await fs.writeFile(Android.homeFolder() + '/.gitui-test/.gitui-test1.txt', '')
+      const resultStat = (await fs.stat(Android.homeFolder() + '/.gitui-test'))
 
       if (resultStat.error) {
         throw new Error(resultStat.error)
@@ -1552,7 +1520,19 @@ async function runTests () {
       return true
     })
 
-    await fs.rimraf(Android.homeFolder() + '/.gitui-test-dir')
+    await test('Remove directory', async function () {
+      const result = await fs.exists(Android.homeFolder() + '/.gitui-test/.gitui-test.txt')
+
+      return result
+    })
+
+    await test('Delete path', async function () {
+      await fs.delete(Android.homeFolder() + '/.gitui-test.txt')
+
+      return true
+    })
+
+    await fs.rimraf(Android.homeFolder() + '/.gitui-test')
   })
 
   /*
@@ -1853,19 +1833,36 @@ function reporter (tests) {
 }
 
 async function test () {
+  const status = document.getElementById('status')
+
+  if (status.value !== '') {
+    status.value = ''
+  }
+
   const tests = await runTests()
   const message = reporter(tests)
 
-  // document.getElementById('status').value = ''
   setStatus(message)
+  setStatus(Android.heapAvailable())
   toggleStatus()
 }
 
-window.addEventListener('DOMContentLoaded', async function startUp () {
+async function startUp () {
   setStatus(window.location)
-  // setStatus('Storage permission? ' + Android.havePermission())
+  setStatus(Android.heapAvailable())
 
   if (window.location.search === '?test') {
     await test()
   }
-})
+}
+
+function unloading () {
+  window.removeEventListener('error', capture)
+  window.removeEventListener('DOMContentLoaded', startUp)
+  window.removeEventListener('unload', unloading)
+  window.location = 'about:blank'
+}
+
+window.addEventListener('onload', startUp)
+
+window.addEventListener('unload', unloading)

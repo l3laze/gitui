@@ -19,8 +19,7 @@ import androidx.core.content.ContextCompat;
 import com.github.l3laze.gitui.R;
 
 public class MainActivity extends Activity {
-  private static MainActivity instance;
-  private static WebView webView;
+  private WebView webView;
   protected WebAppInterface webAppInterface;
   protected final int STORAGE_PERM_CODE = 1;
 
@@ -35,16 +34,10 @@ public class MainActivity extends Activity {
     webView.setWebViewClient(new WebViewClient());
     webView.getSettings().setJavaScriptEnabled(true);
 
-    webAppInterface = new WebAppInterface(this);
+    webAppInterface = new WebAppInterface(getApplicationContext());
     webView.addJavascriptInterface(webAppInterface, "Android");
 
-    instance = this;
-
     loadWebapp();
-  }
-
-  public static MainActivity getInstance() {
-    return instance;
   }
 
   public void checkPermission(String permission, int reqCode) {
@@ -59,7 +52,7 @@ public class MainActivity extends Activity {
 
   public void savePermission(int reqCode, boolean isAllowed) {
     if (reqCode == STORAGE_PERM_CODE) {
-      MainActivity.getInstance().webAppInterface.storagePermission = isAllowed;
+      webAppInterface.storagePermission = isAllowed;
     }
   }
 
@@ -83,7 +76,7 @@ public class MainActivity extends Activity {
 
   public void loadWebapp() {
     String url;
-    String internal = "file:///android_asset/gitui/index.html";
+    String internal = "file:///android_asset/index.html";
     String externalBase = Environment.getExternalStorageDirectory().getAbsolutePath() + "/gitui";
 
     java.io.File external = new java.io.File(externalBase + "/index.html");
@@ -96,7 +89,7 @@ public class MainActivity extends Activity {
 
     webView.loadUrl(url);
 
-    MainActivity.getInstance().checkPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE, STORAGE_PERM_CODE);
+    checkPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE, STORAGE_PERM_CODE);
   }
 
   protected void copyTextToClipboard(String text) {
