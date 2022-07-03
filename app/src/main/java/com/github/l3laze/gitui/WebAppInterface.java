@@ -54,13 +54,27 @@ public class WebAppInterface {
   }
 
   @JavascriptInterface
-  public String heapInfo () {
+  public String memInfo () {
     final Runtime runtime = Runtime.getRuntime();
-    final long usedMemInMB=(runtime.totalMemory() - runtime.freeMemory()) / 1048576L;
-    final long maxHeapSizeInMB=runtime.maxMemory() / 1048576L;
-    final long availHeapSizeInMB = maxHeapSizeInMB - usedMemInMB;
+    final float usedMem = runtime.totalMemory() - runtime.freeMemory();
+    final float maxHeapSize = runtime.maxMemory();
+    final float availHeapSize = maxHeapSize - usedMem;
+    final float percentUsed = (usedMem / maxHeapSize) * 100.0f;
 
-    return usedMemInMB + "MB used/" + maxHeapSizeInMB + "MB max (" + availHeapSizeInMB + "MB avail.)";
+    final int kilobyte = 1024;
+    final int megabyte = 1024 * 1024;
+    final String byteSize;
+    final int usedBytes;
+
+    if (usedMem >= megabyte) {
+      byteSize = "MB";
+      usedBytes = (int) usedMem / megabyte;
+    } else {
+      byteSize = "KB";
+      usedBytes = (int) usedMem / kilobyte;
+    }
+
+    return String.format("%.2f", percentUsed) + "% (" + usedBytes + " " + byteSize + ") Android memory for app used";
   }
 
   @JavascriptInterface
@@ -245,11 +259,6 @@ public class WebAppInterface {
     } catch (SecurityException err) {
       return errorToJson(err);
     }
-  }
-
-  @JavascriptInterface
-  public String sizeOnDisk(String path) {
-    return new File(path).length() + "";
   }
 
   @JavascriptInterface

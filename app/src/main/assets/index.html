@@ -39,7 +39,25 @@
         }
     }( typeof global !== "undefined" ? global : this ));
 
-    loadJS('jit.js')
+    loadJS('scripts/jit/author.js', true)
+    loadJS('scripts/jit/blob.js', true)
+    loadJS('scripts/jit/jit.js', true)
+    loadJS('scripts/jit/commit.js', true)
+    loadJS('scripts/jit/database.js', true)
+    loadJS('scripts/jit/entry.js', true)
+    loadJS('scripts/jit/index.js', true)
+    loadJS('scripts/jit/refs.js', true)
+    loadJS('scripts/jit/tree.js', true)
+    loadJS('scripts/jit/utils.js', true)
+    loadJS('scripts/jit/workspace.js', true)
+
+    loadJS('scripts/tests/tests.js', true)
+
+    
+    loadJS('scripts/native.js', true)
+    loadJS('scripts/testFramework.js', true)
+    loadJS('scripts/ui.js', true)
+    loadJS('scripts/main.js', true)
   </script>
 
   <link rel="stylesheet" href="styles.css">
