@@ -1,6 +1,6 @@
 'use strict'
 
-/* global Android, path, util */
+/* global Android, path, gitify */
 /* eslint no-undef: "error" */
 
 // eslint-disable-next-line no-unused-vars

@@ -58,7 +58,6 @@ public class WebAppInterface {
     final Runtime runtime = Runtime.getRuntime();
     final float usedMem = runtime.totalMemory() - runtime.freeMemory();
     final float maxHeapSize = runtime.maxMemory();
-    final float availHeapSize = maxHeapSize - usedMem;
     final float percentUsed = (usedMem / maxHeapSize) * 100.0f;
 
     final int kilobyte = 1024;

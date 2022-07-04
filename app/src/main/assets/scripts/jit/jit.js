@@ -1,6 +1,6 @@
 'use strict'
 
-/* global Android, setStatus, fs, path, workspace, database, blob, util, entry, tree, authorObject, refs, index, commitObject */
+/* global Android, setStatus, fs, path, workspace, database, blob, gitify, entry, tree, authorObject, refs, index, commitObject */
 /* eslint no-undef: "error" */
 
 // eslint-disable-next-line no-unused-vars

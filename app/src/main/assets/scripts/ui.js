@@ -125,9 +125,9 @@ function okModal () {
 // eslint-disable-next-line no-unused-vars
 function openTab (which, whatClass, btnClass) {
   const controls = {
-    clone: ['repoSource', 'repoPath', 'cloneRecursively'],
-    init: ['repoPath'],
-    import: ['repoPath'],
+    clone: ['repoSourceContainer', 'repoPathContainer', 'cloneRecursivelyContainer'],
+    init: ['repoPathContainer'],
+    import: ['repoPathContainer'],
     app: ['settingsApp'],
     git: ['settingsGit']
   }

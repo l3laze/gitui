@@ -1,6 +1,6 @@
 'use strict'
 
-/* global fs, path, util, zlib */
+/* global fs, path, gitify, zlib */
 /* eslint no-undef: "error" */
 
 // eslint-disable-next-line no-unused-vars
