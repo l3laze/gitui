@@ -151,10 +151,14 @@ function openTab (which, whatClass, btnClass) {
 }
 
 // eslint-disable-next-line no-unused-vars
-function toggleStatus () {
+function toggleStatus (doNotCollapse = false) {
   const sb = document.getElementById('statusBar')
   const ta = document.getElementById('status')
   const xs = document.getElementById('xstatus')
+
+  if (doNotCollapse && xs.innerText === 'Collapse') {
+    return
+  }
 
   sb.style.height = (sb.style.height !== '96.18%'
     ? '96.18%'

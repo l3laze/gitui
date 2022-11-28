@@ -1,6 +1,6 @@
 'use strict'
 
-/* global Android, addInit, addImport, setStatus, fs, path, workspace, database, gitify, blob, entry, toHex, tree, authorObject, jit, testFramework */
+/* global Android, addInit, addImport, setStatus, fs, path, workspace, database, gitify, blob, entry, toHex, tree, authorObject, jit, index, testFramework */
 /* eslint no-undef: "error" */
 
 // eslint-disable-next-line no-unused-vars
@@ -238,7 +238,7 @@ async function runTests () {
     test('Database.generateTempName', function genTempName () {
       const t = db.generateTempName()
 
-      return /tmp_obj.*/.test(t)
+      return t.indexOf('tmp_obj') === 0
     })
 
     await test('Database.store', async function dbStore () {
@@ -349,16 +349,35 @@ async function runTests () {
 
       setStatus(`\ncatfile ${commitFile}\n${catCommit}\n\ncatfile ${treeFile}\n${catTree}\n\ncatfile ${nestedTreeFile}\n${nestedTree}\n\ncatfile ${blobFile}\n${blobData}`)
 
-      return (oldHead !== head)
+      return (commitTree === '47e312ae27cfbf1b9b5ab871e254fd5031f17681' &&
+        nestedTreeOid === 'e812595e5624df1fe6a50a93940ab9d5d5f797a8' &&
+        blobOid === 'b7102ff136714777fcfadb95b9b9c15440694186')
     })
 
     await test('index.add', async function indexAdd () {
-      await jitObj.add(path.join(repoPath, 'dir1'))
+      await fs.writeFile(path.join(repoPath, 'dir1', 'hello.txt'), '')
+
       await jitObj.add(path.join(repoPath, 'dir1', 'hello.txt'))
 
-      await jitObj.index.loadIndex()
+      await jitObj.index.loadIndex(jitObj.index)
 
-      return true
+      return Object.keys(jitObj.index.entries).includes('dir1/hello.txt')
+    })
+
+    await test('Nested files have priority', async function indexAddGivesFilesPriorityP1 () {
+      await fs.delete(repoPath + '/dir1/hello.txt')
+      await fs.mkdirp(repoPath + '/dir1')
+      await fs.mkdir(repoPath + '/dir1/hello.txt/')
+      await fs.writeFile(repoPath + '/dir1/hello.txt/world.txt', 'hai!')
+      await fs.writeFile(repoPath + '/dir1/hello.txt', '')
+
+      // setStatus('------\nDoes' + ((await fs.exists(repoPath + '/dir1/hello.txt/world.txt')) === false ? ' NOT' : '') + ' exist.')
+
+      await jitObj.add(repoPath + '/dir1/hello.txt/world.txt')
+
+      await jitObj.index.loadIndex(jitObj.index)
+
+      return Object.keys(jitObj.index.entries).includes('dir1/hello.txt/world.txt') && (Object.keys(jitObj.index.entries).includes('dir1/hello.txt') === false)
     })
 
     await fs.rimraf(repoPath)

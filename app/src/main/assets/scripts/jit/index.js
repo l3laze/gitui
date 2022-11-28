@@ -23,8 +23,8 @@ function index (p) {
     path: ''
   }
 
-  let entries = {}
-  let changed = false
+  const entries = {}
+  const changed = false
 
   const ENTRY_BLOCK = 8
 
@@ -92,7 +92,7 @@ function index (p) {
 
       // setStatus('toString.length = ' + (result.length + padding.length))
 
-      return result + padding
+      return result + padding.substring(1)
     }
 
     return {
@@ -115,12 +115,33 @@ function index (p) {
     }
   }
 
-  async function add (p, oid, stat) {
+  function removeConflicts (that, p) {
+    // setStatus('Removing conflicts: ' + p + ' and [' + keys.join(', ') + ']')
+
+    const ps = p.split('/')
+
+    if (ps.length === 1) return
+
+    const parent = ps.slice(0, -1).join('/')
+
+    if (typeof that.entries[parent] !== 'undefined') {
+      delete that.entries[parent]
+      that.changed = true
+
+      // setStatus('Removed from index: ' + parent + '. Remaining: [' + Object.keys(that.entries).join(', ') + ']')
+    }
+  }
+
+  async function add (that, p, oid, stat) {
+    removeConflicts(that, p)
+
     const entry = createEntry(p, oid, stat)
 
-    entries[p] = entry
+    that.entries[p] = entry
 
-    changed = true
+    that.changed = true
+
+    // setStatus('Added to index: ' + p + '. entries: ' + Object.keys(that.entries))
   }
 
   function readIndexHeader (data) {
@@ -143,7 +164,7 @@ function index (p) {
     return count
   }
 
-  function readIndexEntries (data, count) {
+  function readIndexEntries (that, data, count) {
     const rawEntries = []
 
     let entry
@@ -223,20 +244,20 @@ function index (p) {
 
       rawEntries.push(raw)
 
-      entries[entry.path] = entry
+      that.entries[entry.path] = entry
     }
 
     return rawEntries
   }
 
-  async function loadIndex () {
-    entries = {}
-    changed = false
+  async function loadIndex (that) {
+    that.entries = {}
+    that.changed = false
 
-    if (await fs.exists(indexPath) && await Android.beginLoadingIndex(indexPath)) {
-      const data = await fs.readFileAsHex(indexPath)
+    if (await fs.exists(that.pathTo) && await Android.beginLoadingIndex(that.pathTo)) {
+      const data = await fs.readFileAsHex(that.pathTo)
       const entryCount = readIndexHeader(data.slice(0, 24))
-      const rawEntries = readIndexEntries(data.slice(24, -40), entryCount)
+      const rawEntries = readIndexEntries(that, data.slice(24, -40), entryCount)
 
       const result = await Android.verifyChecksum(rawEntries, data.slice(-40))
 

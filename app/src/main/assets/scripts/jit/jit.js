@@ -87,7 +87,7 @@ function jit (repoPath) {
     let files, data, stat, blobObj
 
     for (const t of targets) {
-      // setStatus(`t = ${t}`)
+      // setStatus(`jit.add: ${t}`)
 
       // t = path.join(workspaceObj.pathname, t)
 
@@ -95,8 +95,10 @@ function jit (repoPath) {
 
       if (await Android.isDir(t)) {
         files = await workspaceObj.listFiles(t)
-      } else {
+      } else if (await fs.exists(t)) {
         files = [t]
+      } else {
+        throw new Error('Not a file or directory: ' + t)
       }
 
       // setStatus(`files = ${files.join(', ')}`)
@@ -122,7 +124,11 @@ function jit (repoPath) {
 
         await databaseObj.store('blob', blobObj)
 
-        await indexObj.add(path.relativize(workspacePath, filePath), blobObj.oid, stat)
+        // setStatus('Index entries before: ' + Object.keys(indexObj.entries))
+
+        await indexObj.add(indexObj, path.relativize(workspacePath, filePath), blobObj.oid, stat)
+
+        // setStatus('Index entries after: ' + Object.keys(indexObj.entries))
       }
 
       const sortedEntries = Object.keys(indexObj.entries)

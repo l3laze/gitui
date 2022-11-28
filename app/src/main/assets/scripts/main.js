@@ -37,9 +37,6 @@ function initCustomization () {
 
 // eslint-disable-next-line no-unused-vars
 async function test () {
-  setStatus(window.location)
-  setStatus(Android.memInfo())
-
   const status = document.getElementById('status')
 
   if (status.value !== '') {
@@ -51,6 +48,21 @@ async function test () {
   setStatus(report)
   setStatus(Android.memInfo())
   toggleStatus()
+}
+
+// eslint-disable-next-line no-unused-vars
+async function initTest () {
+  const status = document.getElementById('status')
+
+  if (status.value !== '') {
+    status.value = ''
+  }
+
+  const report = await runInit()
+
+  setStatus(report)
+  setStatus(Android.memInfo())
+  toggleStatus(true)
 }
 
 function capture (msg, source, line, column, err) {
@@ -71,7 +83,7 @@ function unloading () {
   window.removeEventListener('error', capture)
   window.removeEventListener('unload', unloading)
   window.removeEventListener('click', clickWin)
-  // window.location = 'about:blank'
+  window.location = 'about:blank'
 }
 
 window.addEventListener('error', capture)

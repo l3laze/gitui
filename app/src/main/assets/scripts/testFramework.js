@@ -110,7 +110,8 @@ function testFramework () {
   function errorReport (t) {
     return `${
       t.error.stack.split('\n')
-        .map((s, i) => '  ' + s).join('\n')
+        .map((s) => '  ' + s)
+        .join('\n')
     }`
   }
 
@@ -160,7 +161,9 @@ function testFramework () {
 
     lines.push(check + ' ' + passed + ' passed')
 
-    const percent = ('' + ((passed / total) * 100)).substring(0, 5)
+    const percent = total > 0
+      ? ('' + ((passed / total) * 100)).substring(0, 5)
+      : '0.0'
 
     lines.push(`\n${percent}% required tests passed (${passed}/${total})`)
 

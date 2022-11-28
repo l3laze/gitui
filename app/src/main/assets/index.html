@@ -3,7 +3,7 @@
 <head>
   <title>gitui</title>
 
-  <meta name="viewport" content="user-scalable=yes, initial-scale=1, maximum-scale=1, minimum-scale=1, width=device-width">
+  <meta name="viewport" content="user-scalable=no, initial-scale=1, width=device-width">
 
   <script>
     /*! loadJS: load a JS file asynchronously. [c]2014 @scottjehl, Filament Group, Inc. (Based on http://goo.gl/REQGQ by Paul Irish). Licensed MIT */
@@ -51,8 +51,8 @@
     loadJS('scripts/jit/workspace.js', true)
 
     loadJS('scripts/tests/tests.js', true)
+    loadJS('scripts/tests/initTest.js', true)
 
-    
     loadJS('scripts/native.js', true)
     loadJS('scripts/testFramework.js', true)
     loadJS('scripts/ui.js', true)
@@ -71,6 +71,10 @@
     <b id="titleText" onclick="toggleDisplay('statusBar', 'inline-block')" class="w3-large w3-left">gitUI</b>
 
     <span class="w3-right">
+      <a class="w3-btn" onclick="initTest()">
+        <i class="fa fa-copy"></i>
+        &nbsp;
+      </a>
       <a class="w3-btn" onclick="test()">
         <i class="fa fa-exclamation"></i>
         &nbsp;
